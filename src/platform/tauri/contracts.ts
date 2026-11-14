@@ -1,13 +1,13 @@
 import type { AudioSession } from "../../modules/audio/AudioController";
 
-/** Proposed IPC only: no commands below are registered in Rust yet. */
+/** Session listing and duck/restore are implemented; playback is still a proposal. */
 export interface NativeCommands {
   audio_list_sessions: { args: undefined; result: AudioSession[] };
   audio_duck: {
-    args: { request: { sessionIds: string[]; volume: number } };
-    result: { restorationToken: string };
+    args: { request: { sessionId: string } };
+    result: { restorationToken: string; outcome: "completed" | "manual_override" };
   };
-  audio_restore: { args: { request: { restorationToken: string } }; result: null };
+  audio_restore: { args: { request: { restorationToken: string } }; result: "completed" | "manual_override" };
   audio_play: { args: { request: { resourceId: string } }; result: null };
   audio_stop: { args: undefined; result: null };
 }
@@ -18,7 +18,7 @@ export interface NativeError {
   message: string;
 }
 
-/** Adapter signature; deliberately no runtime invoke until native implementation exists. */
+/** Typed signature for native adapters; only registered commands may be invoked. */
 export type NativeInvoker = <C extends keyof NativeCommands>(
   command: C,
   args: NativeCommands[C]["args"],

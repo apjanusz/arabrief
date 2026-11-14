@@ -23,7 +23,7 @@ export interface SpeechAsset {
 export interface AppSettings {
   version: 1;
   intervalMs: number;
-  duckVolume: number; // Absolute session volume in [0, 1]. Never increase music volume.
+  duckVolume: number; // Relative multiplier in [0, 1]; default 0.15. Never increase music volume.
   language: string;
   newsSourceUrls: string[];
   targetSessionIds: string[];

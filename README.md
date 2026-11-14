@@ -1,4 +1,4 @@
-﻿# AraBrief
+# AraBrief
 
 Aplikacja desktopowa Windows: Tauri 2, React 19, TypeScript 6, Vite 8 i Tailwind CSS 4.
 Docelowo okresowo ścisza muzykę innej aplikacji, odtwarza krótką audycję AI i przywraca
@@ -6,9 +6,9 @@ wcześniejszą głośność. Muzyka nigdy nie jest pauzowana.
 
 ## Obecny zakres
 
-Minimalny polski ekran ze statusem oraz interfejsy modułów. Nie ma jeszcze integracji
-Windows Audio, RSS, API, syntezy mowy, zapisu ustawień ani działającego harmonogramu.
-Status ekranu jest statyczny. Komendy IPC są propozycją kontraktu, nie działającym API.
+Minimalny polski ekran ze statusem, wyborem sesji oraz interfejsy modułów. Nie ma jeszcze integracji
+RSS, API, syntezy mowy, zapisu ustawień ani działającego harmonogramu.
+Odczyt sesji i ręczny ducking są aktywne; odtwarzanie głosu pozostaje planem.
 
 ## Uruchomienie na Windows
 
@@ -56,16 +56,15 @@ sesji → odtworzenie → przywrócenie głośności → zwolnienie zasobu. Przy
 odbywa się przed ściszeniem. Scheduler musi przywracać audio w `finally`, także po
 anulowaniu lub błędzie, i nie dopuszczać nakładania audycji. `stop()` czeka na sprzątanie.
 
-## Kontrakt natywny (plan)
+## Kontrakt natywny
 
-Nazwy komend i typy danych są w `src/platform/tauri/contracts.ts`. Nie są obecnie
-zarejestrowane w Rust i nie wolno ich wywoływać przed implementacją adaptera.
+Nazwy komend i typy danych są w `src/platform/tauri/contracts.ts`. Działają audio_list_sessions, audio_duck i audio_restore. Komendy odtwarzania nie są zarejestrowane.
 
 | Komenda | Argumenty invoke | Wynik |
 | --- | --- | --- |
 | `audio_list_sessions` | brak | lista sesji (bez sesji AraBrief) |
-| `audio_duck` | `{ request: { sessionIds, volume } }` | `{ restorationToken }` |
-| `audio_restore` | `{ request: { restorationToken } }` | null |
+| `audio_duck` | `{ request: { sessionId } }` | `{ restorationToken, outcome }` po fade-out |
+| `audio_restore` | `{ request: { restorationToken } }` | `completed` lub `manual_override` po fade-in |
 | `audio_play` | `{ request: { resourceId } }` | null po zakończeniu odtwarzania |
 | `audio_stop` | brak | null po zatrzymaniu głosu |
 
@@ -73,7 +72,7 @@ Rust ma używać serde camelCase dla DTO i `Result<T, NativeError>`; błędy odr
 Promise z `{ code, message }`. Kontrakty TS nie walidują danych w czasie wykonania.
 Natywna strona musi walidować sesje, skończoną głośność w [0,1] i identyfikatory zasobów.
 Token przywrócenia jest nieprzezroczysty: snapshot pozostaje w Rust. Ściszenie nigdy nie
-zwiększa głośności; operacja częściowo nieudana odtwarza snapshot przed zwróceniem błędu.
+zwiększa głośności; po błędzie podejmowana jest próba przywrócenia snapshotu.
 Przywracanie jest idempotentne. Zakończona sesja nie może blokować przywracania pozostałych.
 Rust musi również zapewnić odzyskiwanie głośności przy zamknięciu/awarii warstwy UI.
 `audio_stop` kończy aktywne `audio_play`; scheduler traktuje ten przypadek jako anulowanie.
@@ -82,3 +81,75 @@ Nie wystawiamy komend pause/resume ani zmiany globalnej głośności urządzenia
 
 Przed uruchomieniem produkcyjnym trzeba dodać implementacje, walidację IPC i ustawień,
 testy cyklu sukces/błąd/anulowanie oraz politykę uprawnień i CSP dla faktycznych integracji.
+
+## Natywny odczyt sesji audio
+
+`audio_list_sessions` jest już zarejestrowaną komendą Tauri. Adapter React w
+`src/platform/tauri/audio.ts` wywołuje ją i przekazuje wynik do AudioSessionPicker.
+W trybie przeglądarkowym pojawia się informacja o wymaganej aplikacji desktopowej.
+Wybór jest lokalnym stanem komponentu; dopiero przyciski duckingu zmieniają głośność.
+
+Implementacja: `src-tauri/src/audio/windows.rs`, windows-rs 0.62.2. Enumeruje wszystkie
+aktywne urządzenia renderujące (nie tylko domyślne) i ich sesje przez
+IAudioSessionManager2 / IAudioSessionEnumerator. Zwraca id instancji z prefiksem
+urządzenia, sessionIdentifier, deviceId, pid, opcjonalny processName, displayName,
+volume [0,1] i state (active/inactive). Sesje nieaktywne są dostępne do wyboru;
+wygasłe, dźwięki systemowe i własny proces są pomijane. Urządzenia odłączone lub
+niedostępne w trakcie odczytu są pomijane (błąd trafia na stderr); wynik może być częściowy.
+Błędy inicjalizacji COM lub enumeracji urządzeń trafiają do UI jako NativeError.
+
+COM jest inicjalizowany jako MTA w spawn_blocking i zwalniany na tym samym wątku.
+Żadne wskaźniki COM ani uchwyty procesów nie trafiają do UI lub cache. Napisy COM
+są zwalniane przez CoTaskMemFree, uchwyty procesów przez CloseHandle. Odczyt nazwy
+używa PROCESS_QUERY_LIMITED_INFORMATION; proces chroniony lub zakończony daje null,
+bez paniki. PID jest wyłącznie metadanymi, a identyfikatorem wyboru jest instancja
+sesji na urządzeniu. Migawka może zdezaktualizować się natychmiast po odczycie;
+odświeżenie usuwa wybór, jeśli sesja zniknęła. Zmiana urządzenia lub restart odtwarzacza
+wymaga ponownego wyboru. Nie ma monitorowania zdarzeń ani trwałej identyfikacji procesu.
+
+Ręczna weryfikacja: `npm run tauri dev`, włącz muzykę, odśwież listę i wybierz sesję;
+sprawdź PID, nazwę i głośność, zakończ odtwarzacz i ponownie odśwież. Przy dwóch
+aktywnych wyjściach sprawdź sesje na obu urządzeniach. Brak zmiany głośności jest zamierzony.
+Test odczytu i serializacji: `cargo test --manifest-path src-tauri/Cargo.toml --lib -- --nocapture`.
+
+## Ręczny ducking
+
+`Ścisz muzykę` używa wyłącznie ISimpleAudioVolume wybranej instancji sesji.
+Fade-out i fade-in trwają po 3 sekundy (kroki co około 20 ms, postęp liczony zegarem).
+Cel to 15% poziomu początkowego: np. 80% → 12%, a nie bezwzględne 15%.
+`Przywróć głośność` odtwarza początkowy poziom i zwalnia cykl. Brak pauzy/wznowienia,
+zmiany globalnej głośności, stanu mute lub głośności innych sesji.
+
+Jeden dedykowany wątek MTA przechowuje snapshot, uchwyty COM i subskrypcję
+IAudioSessionEvents. Obsługuje jeden cykl naraz; ponowne ducking jest odrzucane, więc
+nie da się zastąpić snapshotu już ściszonym poziomem. Restore jest idempotentne po
+zakończeniu cyklu. Pusty restorationToken oznacza przywrócenie bieżącego cyklu
+(przycisk awaryjny także po błędzie komendy lub przeładowaniu UI).
+
+Własne zapisy mają EventContext GUID. Zewnętrzne zmiany poziomu, mute lub kanałów
+powodują oddanie kontroli użytkownikowi: fade kończy się wynikiem manual_override,
+a późniejsze restore nie nadpisuje jego poziomu. Dodatkowo przed każdym zapisem
+odczytywany poziom jest porównywany z ostatnim własnym zapisem. Powiadomienia Windows
+są asynchroniczne: odczyt i zapis nie są atomową operacją względem miksera systemowego.
+Po oddaniu kontroli należy zakończyć cykl przyciskiem przywracania przed następnym duckingiem.
+
+Wygaśnięcie sesji lub odłączenie urządzenia kończy operację błędem. Nie próbujemy
+przenosić snapshotu na inną sesję, PID lub nowe urządzenie. Gdy to samo urządzenie
+zmieni status domyślnego, nadal działamy wyłącznie na pierwotnej sesji. Jeśli sesja
+przeniesie się na inne wyjście, trzeba ją ponownie wybrać. Po błędzie snapshot jest
+zachowany, jeżeli automatyczna próba przywrócenia nie powiodła się.
+
+Normalne ExitRequested jest wstrzymywane, a wątek audio kończy trwający fade i
+wykonuje restore przed wyjściem. Zmiany użytkownika nadal mają pierwszeństwo.
+Niedostępnej lub wygasłej sesji nie da się przywrócić; błąd zamknięcia jest raportowany
+na stderr. Wymuszone zabicie procesu/awaria systemu nie wykonuje tego mechanizmu.
+
+Testy logiki fade używają fikcyjnego adaptera i nie zmieniają realnej głośności.
+Ręcznie sprawdź: fade 80% → 12% → 80%, ręczną zmianę w mikserze w trakcie fade i po
+ściszeniu, zamknięcie okna podczas fade, zakończenie odtwarzacza i odłączenie urządzenia.
+
+Referencje API:
+- https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-isimpleaudiovolume-setmastervolume
+- https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/Media/Audio/struct.IAudioSessionControl2.html
+- https://learn.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionmanager2
+- https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-enumaudioendpoints

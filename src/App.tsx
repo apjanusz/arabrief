@@ -1,5 +1,8 @@
 ﻿import "./App.css";
 
+import { AudioSessionPicker } from "./modules/audio/AudioSessionPicker";
+import { audioSessionReader } from "./platform/tauri/audio";
+
 function App() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
@@ -15,13 +18,14 @@ function App() {
         <h2 id="status-heading" className="text-lg font-medium">Stan aplikacji</h2>
         <p role="status" className="mt-3 flex items-center gap-3 text-teal-300">
           <span aria-hidden="true" className="h-2 w-2 rounded-full bg-teal-400" />
-          Szkielet aplikacji gotowy
+          Wybór źródła muzyki dostępny
         </p>
         <p className="mt-3 leading-relaxed text-slate-400">
-          Harmonogram jest wyłączony. Integracje audio, źródła wiadomości,
+          Ręczne ściszanie muzyki jest dostępne. Harmonogram, źródła wiadomości,
           generowanie treści i synteza mowy nie są jeszcze podłączone.
         </p>
       </section>
+      <AudioSessionPicker reader={audioSessionReader} />
     </main>
   );
 }
