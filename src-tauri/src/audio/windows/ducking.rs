@@ -157,6 +157,7 @@ struct Active {
     volume: NativeVolume,
     original: f32,
     expected: f32,
+    fade_in_ms: u32,
 }
 impl Active {
     fn restore(&mut self) -> std::result::Result<Outcome, String> {
@@ -164,7 +165,7 @@ impl Active {
             &self.volume,
             &mut self.expected,
             self.original,
-            fade::FADE_DURATION,
+            std::time::Duration::from_millis(self.fade_in_ms as u64),
         )
     }
 }
@@ -176,7 +177,7 @@ pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
     let mut generation = 0u64;
     for command in receiver {
         match command {
-            Command::Duck(id, reply) => {
+            Command::Duck(id, config, reply) => {
                 let result = (|| -> std::result::Result<DuckResult, String> {
                     initialized.as_ref().map_err(|e| e.to_string())?;
                     if active.is_some() {
@@ -192,13 +193,14 @@ pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
                         volume,
                         original,
                         expected: original,
+                        fade_in_ms: config.fade_in_ms,
                     });
                     let current = active.as_mut().unwrap();
                     match fade::fade(
                         &current.volume,
                         &mut current.expected,
-                        original * fade::DUCK_RATIO,
-                        fade::FADE_DURATION,
+                        original * config.ratio,
+                        std::time::Duration::from_millis(config.fade_out_ms as u64),
                     ) {
                         Ok(outcome) => Ok(DuckResult {
                             restoration_token: token,

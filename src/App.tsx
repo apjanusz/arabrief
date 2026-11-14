@@ -2,6 +2,8 @@
 
 import { AudioSessionPicker } from "./modules/audio/AudioSessionPicker";
 import { audioSessionReader } from "./platform/tauri/audio";
+import { audioPlayer } from "./platform/tauri/player";
+import { settingsRepository, apiCredentials } from "./platform/tauri/settings";
 
 function App() {
   return (
@@ -25,7 +27,7 @@ function App() {
           generowanie treści i synteza mowy nie są jeszcze podłączone.
         </p>
       </section>
-      <AudioSessionPicker reader={audioSessionReader} />
+      <AudioSessionPicker reader={audioSessionReader} player={audioPlayer} repository={settingsRepository} credentials={apiCredentials} />
     </main>
   );
 }

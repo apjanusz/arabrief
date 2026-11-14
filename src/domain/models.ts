@@ -22,11 +22,19 @@ export interface SpeechAsset {
 
 export interface AppSettings {
   version: 1;
+  preferredAudioSource: { id: string; name: string } | null;
   intervalMs: number;
   duckVolume: number; // Relative multiplier in [0, 1]; default 0.15. Never increase music volume.
+  fadeOutMs: number;
+  fadeInMs: number;
+  narratorVolume: number;
+  broadcastMinDurationMs: number;
+  broadcastMaxDurationMs: number;
+  topics: string[];
+  openAiVoice: string;
+  autoStart: boolean;
   language: string;
   newsSourceUrls: string[];
-  targetSessionIds: string[];
 }
 
 export type BroadcastState =

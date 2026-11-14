@@ -9,7 +9,8 @@
 - Jedna audycja naraz. Przygotuj treść i mowę przed ściszeniem; zwalniaj zasoby i subskrypcje.
 - Kontrakty IPC utrzymuj w src/platform/tauri/contracts.ts, a po wdrożeniu synchronizuj z Rust DTO. Waliduj dane po obu stronach granicy IPC.
 - Małe zależności: preferuj platformę i istniejące biblioteki. Nie dodawaj bibliotek bez potrzeby.
-- Bez sekretów w repozytorium, logach, ustawieniach i frontendowych zmiennych VITE_*. Docelowo użyj systemowego magazynu poświadczeń.
+- Bez sekretów w repozytorium, logach, SQLite i frontendowych zmiennych VITE_*. Klucz OpenAI wpisuje się w natywnym oknie Windows i przechowuje wyłącznie w Windows Credential Manager. Nie dodawaj komendy zwracającej klucz do webview. Przyszłe zapytania API wykonuj w Rust.
+- Zmiany schematu SQLite dodawaj jako kolejne migracje w src-tauri/migrations; nie zmieniaj już wydanych migracji. Waliduj ustawienia w Rust, zapisuj je transakcyjnie i utrzymuj zgodność DTO TypeScript.
 - UI po polsku, dostępne semantycznie i responsywne. Stan ma odpowiadać rzeczywistym możliwościom aplikacji.
 - Po zmianach uruchom npm run build oraz odpowiednie cargo fmt/check/clippy. Dla logiki harmonogramu i odzyskiwania audio dodawaj testy błędów i anulowania.
 - Aktualizuj README przy zmianie architektury, komend lub uruchamiania. Raportuj kontrole, które nie mogły się wykonać.

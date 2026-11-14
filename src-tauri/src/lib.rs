@@ -9,10 +9,35 @@ pub fn run() {
     let restored = Arc::new(AtomicBool::new(false));
     tauri::Builder::default()
         .manage(audio::DuckingController::new())
+        .manage(player::AudioPlayer::new())
+        .setup(|app| {
+            let directory = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&directory)?;
+            let repository =
+                settings::SettingsRepository::open(&directory.join("settings.sqlite3"))
+                    .map_err(std::io::Error::other)?;
+            let preferences = repository.load().map_err(std::io::Error::other)?;
+            settings::apply(
+                &preferences,
+                app.state::<audio::DuckingController>().inner(),
+                app.state::<player::AudioPlayer>().inner(),
+            );
+            app.manage(Arc::new(repository));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             audio::audio_list_sessions,
             audio::ducking::audio_duck,
-            audio::ducking::audio_restore
+            audio::ducking::audio_restore,
+            player::audio_play,
+            player::audio_stop,
+            player::audio_get_status,
+            player::audio_set_volume,
+            settings::settings_load,
+            settings::settings_save,
+            credentials::credentials_save,
+            credentials::credentials_check,
+            credentials::credentials_delete
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -24,8 +49,10 @@ pub fn run() {
                 if !closing.swap(true, Ordering::SeqCst) {
                     let controller = app.state::<audio::DuckingController>().inner().clone();
                     let app = app.clone();
+                    let player = app.state::<player::AudioPlayer>().inner().clone();
                     let restored = restored.clone();
                     std::thread::spawn(move || {
+                        player.shutdown();
                         if let Err(error) = controller.shutdown() {
                             eprintln!("Audio restoration at shutdown failed: {error}");
                         }
@@ -37,3 +64,6 @@ pub fn run() {
         });
 }
 mod audio;
+mod credentials;
+mod player;
+mod settings;
