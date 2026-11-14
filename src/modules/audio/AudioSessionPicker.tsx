@@ -4,8 +4,9 @@ import type { AudioPlayer } from "./AudioPlayer";
 import { PlaybackTest } from "./PlaybackTest";
 import { SettingsSummary } from "../settings/SettingsSummary";
 import type { SettingsRepository } from "../settings/SettingsRepository";
+import type { CredentialStore } from "../settings/CredentialStore";
 
-export function AudioSessionPicker({ reader, player, repository, credentials }: { reader: Pick<AudioController, "listSessions" | "duck" | "restore">; player: AudioPlayer; repository: SettingsRepository; credentials: { save(): Promise<boolean>; check(): Promise<boolean>; delete(): Promise<void> } }) {
+export function AudioSessionPicker({ reader, player, repository, credentials }: { reader: Pick<AudioController, "listSessions" | "duck" | "restore">; player: AudioPlayer; repository: SettingsRepository; credentials: CredentialStore }) {
   const [sessions, setSessions] = useState<AudioSession[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);

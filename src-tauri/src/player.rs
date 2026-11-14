@@ -282,11 +282,11 @@ fn read_resource(root: &Path, id: &str) -> Result<Vec<u8>, String> {
     let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
     use std::io::Read;
     let mut bytes = Vec::new();
-    file.take(20 * 1024 * 1024 + 1)
+    file.take(64 * 1024 * 1024 + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
-    if bytes.len() > 20 * 1024 * 1024 {
-        return Err("Nagranie przekracza 20 MiB".into());
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("Nagranie przekracza 64 MiB".into());
     }
     Ok(bytes)
 }
@@ -295,8 +295,8 @@ fn decode(bytes: Vec<u8>) -> Result<SamplesBuffer, String> {
     let decoder = Decoder::try_from(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let channels = decoder.channels();
     let rate = decoder.sample_rate();
-    let samples: Vec<_> = decoder.take(16_000_001).collect();
-    if samples.is_empty() || samples.len() > 16_000_000 {
+    let samples: Vec<_> = decoder.take(32_000_001).collect();
+    if samples.is_empty() || samples.len() > 32_000_000 {
         return Err("Nagranie puste lub zbyt długie".into());
     }
     Ok(SamplesBuffer::new(channels, rate, samples))

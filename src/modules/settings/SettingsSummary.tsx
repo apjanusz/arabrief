@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import type { AppSettings } from "../../domain/models";
 import type { SettingsRepository } from "./SettingsRepository";
 import type { AudioPlayer } from "../audio/AudioPlayer";
+import type { CredentialStore } from "./CredentialStore";
 
 export function SettingsSummary({ repository, credentials, player, selected, disabled }: {
   repository: SettingsRepository;
-  credentials: { save(): Promise<boolean>; check(): Promise<boolean>; delete(): Promise<void> };
+  credentials: CredentialStore;
   player: AudioPlayer;
   selected: { id: string; name: string } | null;
   disabled: boolean;
@@ -31,10 +32,14 @@ export function SettingsSummary({ repository, credentials, player, selected, dis
         const next = { ...current, preferredAudioSource: selected, narratorVolume: (await player.getStatus()).volume };
         await repository.save(next); setSettings(next); return "Zapisano wybrane źródło i głośność lektora.";
       })}>Zapisz źródło i głośność lektora</button>
-      <p className="mt-4 text-sm text-slate-400">Klucz wpiszesz w natywnym oknie Windows. Sprawdzenie potwierdza tylko obecność w magazynie, bez połączenia z OpenAI.</p>
+      <p className="mt-4 text-sm text-slate-400">Klucz wpiszesz w natywnym oknie Windows. „Sprawdź klucz” wysyła do OpenAI żądanie metadanych modeli, bez generowania treści. Test nie potwierdza dostępnych środków ani uprawnień do generowania.</p>
       <div className="mt-3 flex flex-wrap gap-3">
         <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => await credentials.save() ? "Klucz zapisany w Windows Credential Manager." : "Anulowano zapis klucza.")}>Zapisz klucz</button>
-        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => await credentials.check() ? "Klucz jest zapisany. Nie sprawdzono jego ważności." : "Brak zapisanego klucza.")}>Sprawdź klucz</button>
+        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => {
+          const result = await credentials.check();
+          const listed = (value: boolean | null) => value === null ? "nie ustalono" : value ? "widoczny na liście" : "nie znaleziono na liście";
+          return `${result.message} Model tekstowy ${result.textModel}: ${listed(result.textModelListed)}. Model Realtime: ${listed(result.realtimeModelListed)}.`;
+        })}>Sprawdź klucz</button>
         <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => { await credentials.delete(); return "Usunięto klucz z magazynu."; })}>Usuń klucz</button>
       </div>
       <p role="status" className="mt-3 text-sm text-teal-300">{message}</p>

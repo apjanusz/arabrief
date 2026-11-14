@@ -22,7 +22,11 @@ pub fn run() {
                 app.state::<audio::DuckingController>().inner(),
                 app.state::<player::AudioPlayer>().inner(),
             );
-            app.manage(Arc::new(repository));
+            let repository = Arc::new(repository);
+            app.manage(Arc::new(news::NewsService::new(repository.clone())));
+            app.manage(Arc::new(content::ContentService::new(repository.clone())));
+            app.manage(Arc::new(speech::SpeechService::new(repository.clone())));
+            app.manage(repository);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -37,7 +41,13 @@ pub fn run() {
             settings::settings_save,
             credentials::credentials_save,
             credentials::credentials_check,
-            credentials::credentials_delete
+            credentials::credentials_validate,
+            credentials::credentials_delete,
+            news::news_fetch,
+            news::news_mark_used,
+            content::content_generate,
+            speech::speech_generate,
+            speech::speech_cancel
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -50,8 +60,10 @@ pub fn run() {
                     let controller = app.state::<audio::DuckingController>().inner().clone();
                     let app = app.clone();
                     let player = app.state::<player::AudioPlayer>().inner().clone();
+                    let speech = app.state::<Arc<speech::SpeechService>>().inner().clone();
                     let restored = restored.clone();
                     std::thread::spawn(move || {
+                        speech.shutdown();
                         player.shutdown();
                         if let Err(error) = controller.shutdown() {
                             eprintln!("Audio restoration at shutdown failed: {error}");
@@ -64,6 +76,10 @@ pub fn run() {
         });
 }
 mod audio;
+mod content;
 mod credentials;
+mod news;
+mod openai_errors;
 mod player;
 mod settings;
+mod speech;

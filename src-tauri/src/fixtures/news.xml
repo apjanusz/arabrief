@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Fixture</title><link>https://news.google.com</link><description>Test</description>
+<item><title>Nauka &amp; świat</title><link>https://news.google.com/rss/articles/one?oc=5</link><guid isPermaLink="false">one</guid><pubDate>Fri, 13 Nov 2026 10:00:00 GMT</pubDate><source url="https://example.org">Wydawca</source><description><![CDATA[<a href="https://example.org">Tylko opis RSS</a><script>alert(1)</script>]]></description></item>
+<item><title>Nowsza wiadomość</title><link>https://news.google.com/rss/articles/two</link><guid>two</guid><pubDate>Sat, 14 Nov 2026 10:00:00 GMT</pubDate></item>
+<item><title>Bez daty i opisu</title><link>https://news.google.com/rss/articles/three</link><pubDate>unknown</pubDate></item>
+<item><title>Niebezpieczny link</title><link>javascript:alert(1)</link></item>
+</channel></rss>

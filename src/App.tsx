@@ -4,6 +4,10 @@ import { AudioSessionPicker } from "./modules/audio/AudioSessionPicker";
 import { audioSessionReader } from "./platform/tauri/audio";
 import { audioPlayer } from "./platform/tauri/player";
 import { settingsRepository, apiCredentials } from "./platform/tauri/settings";
+import { NewsDiagnostics } from "./modules/news/NewsDiagnostics";
+import { newsProvider } from "./platform/tauri/news";
+import { contentGenerator } from "./platform/tauri/content";
+import { speechProvider } from "./platform/tauri/speech";
 
 function App() {
   return (
@@ -23,11 +27,12 @@ function App() {
           Wybór źródła muzyki dostępny
         </p>
         <p className="mt-3 leading-relaxed text-slate-400">
-          Ręczne ściszanie muzyki jest dostępne. Harmonogram, źródła wiadomości,
-          generowanie treści i synteza mowy nie są jeszcze podłączone.
+          Dostępne są ręczne ściszanie, Google News RSS i testowe generowanie scenariusza.
+          Dostępna jest synteza audio przez Realtime. Automatyczny harmonogram nie jest jeszcze podłączony.
         </p>
       </section>
       <AudioSessionPicker reader={audioSessionReader} player={audioPlayer} repository={settingsRepository} credentials={apiCredentials} />
+      <NewsDiagnostics provider={newsProvider} settings={settingsRepository} generator={contentGenerator} speech={speechProvider} player={audioPlayer} />
     </main>
   );
 }

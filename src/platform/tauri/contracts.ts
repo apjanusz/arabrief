@@ -1,13 +1,21 @@
 import type { AudioSession } from "../../modules/audio/AudioController";
 import type { PlayRequest, PlaybackStatus } from "../../modules/audio/AudioPlayer";
-import type { AppSettings } from "../../domain/models";
+import type { AppSettings, BroadcastScript, SpeechAsset } from "../../domain/models";
+import type { NewsResult } from "../../modules/news/NewsProvider";
+import type { KeyValidation } from "../../modules/settings/CredentialStore";
 
 /** Playback commands reject with a string; session commands use NativeError. */
 export interface NativeCommands {
+  speech_generate: { args: { broadcastId: string; voice: string | null; jobId: string }; result: SpeechAsset };
+  speech_cancel: { args: { jobId: string }; result: boolean };
+  content_generate: { args: { articleIds: readonly string[] }; result: BroadcastScript };
+  news_fetch: { args: { topics: string[] }; result: NewsResult };
+  news_mark_used: { args: { articleIds: string[]; broadcastId: string }; result: null };
   settings_load: { args: undefined; result: AppSettings };
   settings_save: { args: { settings: AppSettings }; result: null };
   credentials_save: { args: undefined; result: boolean };
   credentials_check: { args: undefined; result: boolean };
+  credentials_validate: { args: undefined; result: KeyValidation };
   credentials_delete: { args: undefined; result: null };
   audio_list_sessions: { args: undefined; result: AudioSession[] };
   audio_duck: {

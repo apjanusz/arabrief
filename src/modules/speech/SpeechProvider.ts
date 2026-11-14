@@ -1,6 +1,6 @@
-import type { BroadcastScript, SpeechAsset } from "../../domain/models";
+import type { SpeechAsset } from "../../domain/models";
 
 export interface SpeechProvider {
-  synthesize(script: BroadcastScript, signal?: AbortSignal): Promise<SpeechAsset>;
-  release(asset: SpeechAsset): Promise<void>;
+  synthesize(broadcastId: string, voice: string, jobId: string): Promise<SpeechAsset>;
+  cancel(jobId: string): Promise<boolean>;
 }

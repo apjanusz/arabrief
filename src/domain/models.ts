@@ -1,23 +1,51 @@
 /** Wire dates use ISO 8601 UTC strings; durations use milliseconds. */
 export interface NewsItem {
   id: string;
+  provider: string;
   title: string;
   url: string;
-  source: string;
-  publishedAt: string;
-  summary: string;
+  source: string | null;
+  sourceUrl: string | null;
+  publishedAt: string | null;
+  rawPublicationDate: string | null;
+  /** Raw RSS description, possibly HTML. This is not full article content. */
+  descriptionHtml: string | null;
+  guid: string | null;
+  feedUrl: string;
+  fetchedAt: string;
+  topics: string[];
 }
 
 export interface BroadcastScript {
+  id: string;
+  createdAt: string;
+  model: string;
+  title: string;
   text: string;
   language: string;
-  sourceUrls: string[];
+  topics: string[];
+  estimatedDurationMs: number;
+  targetMinDurationMs: number;
+  targetMaxDurationMs: number;
+  draft: {
+    title: string;
+    segments: { topic: string; text: string; evidence: { source_id: string; quote: string }[] }[];
+    limitations: string[];
+    insufficient_material: boolean;
+  };
+  sources: NewsItem[];
 }
 
 /** Opaque local resource identifier, never a remote URL or arbitrary file path. */
 export interface SpeechAsset {
   resourceId: string;
   durationMs: number;
+  model: string;
+  voice: string;
+  transcript: string;
+  verification: "realtime_transcript_normalized_exact";
+  segmentCount: number;
+  cached: boolean;
 }
 
 export interface AppSettings {
@@ -32,6 +60,7 @@ export interface AppSettings {
   broadcastMaxDurationMs: number;
   topics: string[];
   openAiVoice: string;
+  textModel: string;
   autoStart: boolean;
   language: string;
   newsSourceUrls: string[];
