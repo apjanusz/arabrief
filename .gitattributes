@@ -1,0 +1,26 @@
+# Automatyczne rozpoznawanie plików tekstowych
+* text=auto
+
+# Kod i konfiguracja – zawsze LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+
+# Skrypty Windows – CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Pliki binarne
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

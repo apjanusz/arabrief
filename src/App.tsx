@@ -1,49 +1,27 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+﻿import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
+      <header>
+        <p className="text-sm font-medium uppercase tracking-widest text-teal-400">Twoja przerwa na informacje</p>
+        <h1 className="mt-3 text-5xl font-semibold tracking-tight">AraBrief</h1>
+        <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-300">
+          Krótkie audycje informacyjne przygotowane przez AI, w rytmie Twojego dnia.
+          Muzyka gra dalej — podczas audycji zostanie tylko ściszona.
+        </p>
+      </header>
+      <section aria-labelledby="status-heading" className="mt-10 rounded-2xl border border-slate-700 bg-slate-900 p-6">
+        <h2 id="status-heading" className="text-lg font-medium">Stan aplikacji</h2>
+        <p role="status" className="mt-3 flex items-center gap-3 text-teal-300">
+          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-teal-400" />
+          Szkielet aplikacji gotowy
+        </p>
+        <p className="mt-3 leading-relaxed text-slate-400">
+          Harmonogram jest wyłączony. Integracje audio, źródła wiadomości,
+          generowanie treści i synteza mowy nie są jeszcze podłączone.
+        </p>
+      </section>
     </main>
   );
 }
