@@ -27,8 +27,32 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local build caches and generated TypeScript metadata
 .npm-cache/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Cargo output when CARGO_TARGET_DIR points to the repository root.
+# src-tauri/target (including diagnostics-build) is ignored in src-tauri/.gitignore.
+/target/
+
+# Local SQLite databases and their journal/WAL/shared-memory files
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3-wal
 *.sqlite3-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Generated speech WAV files and incomplete downloads/audio writes
+# Keep other audio files eligible for version control (e.g. test fixtures).
+speech-*.wav
+*.part

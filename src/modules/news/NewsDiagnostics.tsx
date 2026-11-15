@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { notifications } from "../../app/notifications/notifications";
 import type { NewsProvider, NewsResult } from "./NewsProvider";
 import type { SettingsRepository } from "../settings/SettingsRepository";
 import type { ContentGenerator } from "../content/ContentGenerator";
@@ -10,7 +11,6 @@ export function NewsDiagnostics({ provider, settings, generator, speech, player 
   const [topics, setTopics] = useState("");
   const [result, setResult] = useState<NewsResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
   useEffect(() => {
     let mounted = true;
     void settings.load().then(value => { if (mounted) setTopics(value.topics.join("\n")); }).catch(() => {});
@@ -18,15 +18,15 @@ export function NewsDiagnostics({ provider, settings, generator, speech, player 
   }, [settings]);
   const requested = () => topics.split("\n").map(t => t.trim()).filter(Boolean);
   async function fetch() {
-    setBusy(true); setMessage(""); setResult(null);
+    setBusy(true); setResult(null);
     try { setResult(await provider.fetch({ topics: requested() })); }
-    catch (cause) { setMessage(String(cause)); }
+    catch (cause) { notifications.error(String(cause)); }
     finally { setBusy(false); }
   }
   async function save() {
     setBusy(true);
-    try { const current = await settings.load(); await settings.save({ ...current, topics: requested() }); setMessage("Zapisano tematy."); }
-    catch (cause) { setMessage(String(cause)); }
+    try { const current = await settings.load(); await settings.save({ ...current, topics: requested() }); notifications.success("Zapisano tematy."); }
+    catch (cause) { notifications.error(String(cause)); }
     finally { setBusy(false); }
   }
   return (
@@ -39,7 +39,6 @@ export function NewsDiagnostics({ provider, settings, generator, speech, player 
         <button disabled={busy || !topics.trim()} onClick={() => void fetch()} className="rounded-lg bg-teal-700 px-4 py-2 disabled:opacity-50">{busy ? "Przetwarzanie…" : "Pobierz wiadomości"}</button>
         <button disabled={busy} onClick={() => void save()} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50">Zapisz tematy</button>
       </div>
-      <p role="status" className="mt-3 text-sm text-teal-300">{message}</p>
       {result && <>
         <p role="status" className="mt-3 text-sm">Artykuły dostępne do nowego scenariusza: {result.items.length}. Odpytano tematów: {result.fetchedTopics.length}. Pozostałe wyniki mogą pochodzić z pamięci SQLite.</p>
         <ul className="mt-3 space-y-1 text-xs text-slate-400">{result.topics.map(topic => <li key={topic.topic}>

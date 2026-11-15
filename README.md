@@ -1,17 +1,17 @@
 # AraBrief
 
 Aplikacja desktopowa Windows: Tauri 2, React 19, TypeScript 6, Vite 8 i Tailwind CSS 4.
-Docelowo okresowo ścisza muzykę innej aplikacji, odtwarza krótką audycję AI i przywraca
+Po uruchomieniu harmonogramu okresowo ścisza muzykę innej aplikacji, odtwarza krótką audycję AI i przywraca
 wcześniejszą głośność. Muzyka nigdy nie jest pauzowana.
 
 ## Obecny zakres
 
-Minimalny polski ekran ze statusem, wyborem sesji oraz interfejsy modułów. Nie ma jeszcze integracji
-działającego harmonogramu. Synteza mowy przez Realtime, Google News RSS i generowanie scenariuszy
+Polski interfejs z harmonogramem, wyborem sesji, zainteresowaniami i ustawieniami.
+Synteza mowy przez Realtime, Google News RSS i generowanie scenariuszy
 przez OpenAI Responses API działają natywnie. Ustawienia są zapisywane w SQLite,
 a klucz API w Windows Credential Manager.
 Odczyt sesji, ducking i natywne odtwarzanie WAV/MP3 są aktywne. Dostępny jest test
-całego cyklu z muzyką i dwutonowym nagraniem WAV; generowanie mowy pozostaje planem.
+całego cyklu z muzyką i dwutonowym nagraniem WAV.
 
 ## Uruchomienie na Windows
 
@@ -29,7 +29,7 @@ Pełna kompilacja i instalator: `npm run tauri build`.
 Kontrole Rust: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`,
 `cargo check --manifest-path src-tauri/Cargo.toml` oraz
 `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
-Repozytorium nie zawiera jeszcze test runnera ani lintera JS; build sprawdza TypeScript.
+Testy logiki uruchamiają `node:test`; build sprawdza TypeScript.
 
 Tailwind jest podłączony przez `@tailwindcss/vite` i `@import "tailwindcss"` w App.css,
 zgodnie z https://tailwindcss.com/docs/installation/using-vite. Nie wymaga PostCSS ani
@@ -39,16 +39,17 @@ osobnego pliku konfiguracji Tailwind.
 
 | Lokalizacja | Odpowiedzialność |
 | --- | --- |
-| `src/App.tsx`, `src/App.css` | Minimalny ekran i style Tailwind |
+| `src/App.tsx`, `src/App.css` | Ekrany desktopowe i style Tailwind |
 | `src/domain/models.ts` | Dane wiadomości, scenariusza, audio, ustawień i stanu |
 | `src/modules/audio/AudioController.ts` | Port do natywnego Windows Audio: sesje, ściszenie, odtwarzanie i przywrócenie |
 | `src/modules/news/NewsProvider.ts` | Pobieranie i normalizacja wiadomości |
 | `src/modules/content/ContentGenerator.ts` | Generowanie scenariusza z zachowaniem źródeł |
 | `src/modules/speech/SpeechProvider.ts` | Synteza Realtime, cache lokalnego WAV i anulowanie |
 | `src/modules/scheduler/BroadcastScheduler.ts` | Interwały, orkiestracja, anulowanie, stan; jedna audycja naraz |
+| `src/modules/scheduler/AutomaticBroadcastScheduler.ts` | Implementacja harmonogramu, zegar monotoniczny, obsługa wybudzenia i błędów |
 | `src/modules/settings/SettingsRepository.ts` | Walidacja, wersjonowanie i zapis ustawień bez sekretów |
-| `src/platform/tauri/contracts.ts` | Typy przyszłego mostu IPC, niezależne od UI |
-| `src-tauri/src/lib.rs` | Punkt kompozycji przyszłych adapterów natywnych |
+| `src/platform/tauri/contracts.ts` | Typy komend IPC, niezależne od UI |
+| `src-tauri/src/lib.rs` | Punkt kompozycji adapterów natywnych |
 
 Zależności: UI → scheduler → interfejsy pozostałych modułów. Konkretne adaptery będą
 wstrzykiwane w punkcie kompozycji; domena nie importuje React ani Tauri. Bez backendu
@@ -231,7 +232,7 @@ błąd migracji lub niepoprawne dane przerywają inicjalizację zamiast resetowa
 | broadcastMinDurationMs / broadcastMaxDurationMs | 120000 / 180000 | uporządkowany zakres 30 s – 15 min |
 | topics | [] | do 30 unikalnych tematów |
 | openAiVoice | alloy | identyfikator; bez weryfikacji przez OpenAI |
-| autoStart | false | bool; harmonogram nadal nie jest wdrożony |
+| autoStart | false | bool; zapisane pole nie uruchamia aplikacji samoczynnie, Start naciska użytkownik |
 | language / newsSourceUrls | pl / [] | preferencje przyszłego modułu wiadomości |
 
 `settings_load()` zwraca kompletny AppSettings; `settings_save({ settings })` zapisuje
@@ -541,3 +542,85 @@ Test drukuje tylko bezpieczny raport KeyValidation, nigdy wartość klucza.
 
 Kody sprawdzono w dokumentacji:
 https://developers.openai.com/api/docs/guides/error-codes
+
+## Interfejs desktopowy
+
+Powłoka w `src/app` ma trzy widoki: Twoje studio, Zainteresowania i Ustawienia.
+Ciemny motyw korzysta z oryginalnego logo w `src/assets/brand`: granatu, czerwieni,
+żółtego, niebieskiego i zieleni. Tokeny CSS są w `src/styles/tokens.css`, a opis
+kierunku projektowego i komponentów w [docs/ui-design.md](docs/ui-design.md).
+Używamy Tailwind, systemowej czcionki Segoe UI i SVG, bez nowych zależności.
+Domyślne okno ma 1200 × 820 px; przy mniejszych szerokościach układ zmienia się
+na jedną kolumnę, a nawigacja boczna na górną. Formularze pozostają zamontowane
+przy zmianie widoku; zapisane ustawienia synchronizują ich stan. Pasek zapisu
+przykleja się do dołu tylko przy niezapisanych zmianach.
+Bez zewnętrznych fontów, bibliotek komponentów, routera i animacji. Nawigacja przechodzi
+w poziome przyciski w wąskim oknie. Formularze mają etykiety, widoczny focus, obsługę
+klawiatury i statusy; dane nie są zastępowane przykładowymi wartościami przy braku IPC.
+
+`useAraBrief` jest punktem kompozycji istniejących adapterów i stanu UI. Nie wywołuje
+Windows API; połączenie z sesjami, odtwarzanie, ducking, SQLite i poświadczenia obsługują
+istniejące serwisy. Ustawienia zapisują pełny snapshot AppSettings, zachowując pola
+nieedytowane w formularzu. Zainteresowania są zapisywane od razu po dodaniu/usunięciu,
+pozostałe ustawienia dopiero po „Zapisz ustawienia”. Źródło muzyki wybiera się z realnej
+listy sesji. Klucz nadal wpisuje się wyłącznie w natywnym oknie Windows.
+
+Start w Studio włącza harmonogram. Pierwszy termin przypada po pełnym zapisanym
+interwale (domyślnie 30 min); przygotowanie RSS → scenariusz → mowa rusza od razu
+w tle. Gdy nagranie jest gotowe, harmonogram czeka do terminu i wywołuje istniejące
+audio_play z resourceId i musicSessionId. Natywny odtwarzacz
+sam ścisza i przywraca muzykę; UI nie implementuje fade ani nie zmienia Windows Audio.
+„Przygotuj bez odtwarzania” pozwala przejrzeć scenariusz i źródła przed odsłuchem.
+Gotowe audio można odtworzyć ponownie bez nowej generacji. Nowy model, głos, tematy
+lub docelowy czas audycji unieważniają gotowy podgląd w UI; natywny cache pozostaje.
+Operacje przygotowania mogą korzystać z płatnych API. Nie ma automatycznych ponowień.
+
+`ManualBroadcastRunner` realizuje przygotowanie i pojedynczy odsłuch; nowy
+`AutomaticBroadcastScheduler` używa go dla kolejnych cykli.
+Stop anuluje syntezę albo zatrzymuje nagranie i czeka na zakończenie natywnego play,
+które obejmuje przywracanie muzyki. Gdy trwa nieanulowalna generacja tekstu, czeka na
+jej odpowiedź i pomija kolejne etapy; UI pokazuje to w statusie. Historia news_mark_used
+jest zapisywana dopiero po potwierdzonym zakończeniu odsłuchu. Widok ostatniej audycji
+pokazuje wyłącznie faktyczne zakończone odsłuchy z bieżącej sesji UI, bez fikcyjnej
+lub domniemanej historii po restarcie. Błąd zapisu historii nie usuwa informacji,
+że nagranie zostało odtworzone.
+
+Scheduler ma jawne fazy idle, preparing, waiting, ducking, playing, restoring i error.
+Odliczanie i timer należą do klasy poza renderowaniem React. Zegar monotoniczny liczy
+interwał, a zegar ścienny i zdarzenia focus/pageshow/visibilitychange wykrywają
+przekroczony termin po uśpieniu Windows. Spóźniona audycja lub audycja bez gotowego
+audio jest pomijana bez ściszania muzyki. Po faktycznym końcu odsłuchu i przywróceniu
+głośności zaczyna się kolejny pełny interwał i przygotowanie następnej audycji.
+Zniknięcie źródła zatrzymuje automatyczne przygotowanie do ponownego wyboru sesji.
+Stop anuluje harmonogram i czeka na natywne przywrócenie głośności. Logi diagnostyczne
+zawierają wyłącznie nazwy zdarzeń, bez treści audycji i sekretów. Ostatnie 100 wpisów
+można odczytać przez `getDiagnostics()`; zdarzenia trafiają też do konsoli. Nie ma automatycznego
+startu po uruchomieniu aplikacji. Odsłuch testowy i test wyjścia audio pozostają dostępne,
+gdy harmonogram jest zatrzymany.
+
+Kontrole UI: `npm run build`, `npm run test:manual`, `npm run test:scheduler` (wbudowany node:test, bez nowych
+bibliotek). Testy sprawdzają kolejność etapów, anulowanie, błędy, brak równoległych
+uruchomień, wykorzystanie gotowego audio i historię dopiero po realnym końcu play.
+Przegląd responsywności w przeglądarce i Tauri obejmuje szerokości 360–1440 px.
+W zwykłej przeglądarce nie ma Tauri IPC: puste stany są jawne i nie odtwarzają danych
+z SQLite ani stanu Windows. Do testu rzeczywistych serwisów służy `npm run tauri dev`.
+
+### Powiadomienia
+
+Wspólny mechanizm jest w `src/app/notifications`, bez dodatkowych bibliotek.
+`notifications.success/error/warning/info(message, { title?, key? })` publikuje
+zdarzenia, a jeden `ToastViewport` w korzeniu aplikacji wyświetla je przez portal
+nad interfejsem, w prawym dolnym rogu. Niezależne akcje tworzą osobne powiadomienia;
+opcjonalny `key` scala powtarzające się błędy z tego samego źródła. Odczyt stanu
+odtwarzacza zgłasza ten sam błąd tylko raz do czasu odzyskania połączenia.
+
+Sukces i informacja znikają po 5 sekundach; błąd i ostrzeżenie wymagają zamknięcia X.
+Odliczanie jest wstrzymywane podczas najechania, fokusu w stosie i nieaktywności
+okna. F8 przenosi fokus do powiadomień; Escape na przycisku zamknięcia zamyka toast.
+Animacje uwzględniają `prefers-reduced-motion`. Długie komunikaty i stos można
+przewijać. Powiadomienia nie zapisują danych na dysku i nie otrzymują sekretów.
+
+Walidacja pól, niezapisane zmiany, etapy audycji, nieaktywne funkcje i informacje
+o ograniczeniach materiałów pozostają przy odpowiednich kontrolkach. Wynik stanu
+klucza zachowuje trwałą etykietę diagnostyczną; potwierdzenia operacji trafiają do toastów.
+Kontrola magazynu powiadomień: `npm run test:notifications`.

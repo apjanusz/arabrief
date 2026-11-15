@@ -1,0 +1,41 @@
+/* Brand palette sampled from the supplied AraBrief SVGs. */
+:root {
+  --brand-navy: #0e1420;
+  --brand-paper: #f6f4ef;
+  --brand-red: #e5322d;
+  --brand-yellow: #ffc531;
+  --brand-blue: #1f6fe0;
+  --brand-green: #1fa971;
+
+  --surface-page: #111824;
+  --surface-panel: #171f2d;
+  --surface-raised: #1e2939;
+  --surface-input: #101722;
+  --surface-hover: #243145;
+  --surface-danger: #2d1d25;
+  --surface-success: #152b26;
+  --surface-brand: #2d212b;
+  --surface-working: #302b1e;
+  --text-primary: var(--brand-paper);
+  --text-secondary: #a6b0c0;
+  --text-muted: #919eb1;
+  --text-link: #aacbff;
+  --text-danger: #ffaaa3;
+  --text-success: #79d8ae;
+  --border: #2d384a;
+  --border-strong: #4a5c75;
+  --focus: #8dbaff;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+  --motion-fast: 140ms;
+}

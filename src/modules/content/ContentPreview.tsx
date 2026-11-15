@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { notifications } from "../../app/notifications/notifications";
 import type { BroadcastScript, NewsItem } from "../../domain/models";
 import type { ContentGenerator } from "./ContentGenerator";
 import type { SettingsRepository } from "../settings/SettingsRepository";
@@ -9,7 +10,6 @@ import { SpeechPreview } from "../speech/SpeechPreview";
 export function ContentPreview({ generator, settings, items, speech, player }: { generator: ContentGenerator; settings: SettingsRepository; items: NewsItem[]; speech: SpeechProvider; player: AudioPlayer }) {
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [broadcast, setBroadcast] = useState<BroadcastScript | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
   useEffect(() => {
@@ -19,14 +19,15 @@ export function ContentPreview({ generator, settings, items, speech, player }: {
   }, [settings]);
   const candidates = items.filter(item => !excluded.includes(item.id)).slice(0,8);
   async function generate() {
-    setBusy(true); setError(""); setBroadcast(null);
+    setBusy(true); setBroadcast(null);
     try {
       const preferences = await settings.load();
       await settings.save({ ...preferences, textModel: model.trim() });
       const result = await generator.generate(candidates.map(item => item.id));
       setBroadcast(result);
       setExcluded(previous => [...new Set([...previous,...result.sources.map(source => source.id)])]);
-    } catch (cause) { setError(String(cause)); }
+      notifications.success("Zapisano scenariusz i materiały źródłowe.");
+    } catch (cause) { notifications.error(String(cause)); }
     finally { setBusy(false); }
   }
   return (
@@ -37,7 +38,6 @@ export function ContentPreview({ generator, settings, items, speech, player }: {
       <input id="text-model" value={model} disabled={busy} onChange={e => setModel(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950 p-2" />
       <p className="mt-2 text-xs text-slate-400">Materiały: {candidates.length}. Scenariusz będzie po polsku, orientacyjnie 2–3 minuty. Przy samych nagłówkach może być krótszy.</p>
       <button disabled={busy || candidates.length<2 || !model.trim()} onClick={() => void generate()} className="mt-3 rounded-lg bg-teal-700 px-4 py-2 disabled:opacity-50">{busy ? "Generowanie scenariusza…" : "Wygeneruj testową audycję"}</button>
-      {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
       {broadcast && <article className="mt-5 rounded-lg border border-slate-700 p-4">
         <h4 className="text-lg font-medium">{broadcast.title}</h4>
         <p className="mt-2 text-xs text-slate-400">{new Date(broadcast.createdAt).toLocaleString("pl-PL")} · {broadcast.model} · szacunkowo {Math.round(broadcast.estimatedDurationMs/1000)} s przy 140 słowach/min (bez TTS)</p>

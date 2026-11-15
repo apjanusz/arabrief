@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { notifications } from "../../app/notifications/notifications";
 import type { AudioController, AudioSession } from "./AudioController";
 import type { AudioPlayer } from "./AudioPlayer";
 import { PlaybackTest } from "./PlaybackTest";
@@ -10,26 +11,25 @@ export function AudioSessionPicker({ reader, player, repository, credentials }: 
   const [sessions, setSessions] = useState<AudioSession[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [failed, setFailed] = useState(false);
   const reload = useRef<(() => void) | null>(null);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState("");
-  const [notice, setNotice] = useState("");
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const initializedSelection = useRef(false);
   async function changeVolume(restore: boolean) {
     setBusy(true);
-    setError("");
-    setNotice(restore ? "Przywracanie głośności…" : "Ściszanie muzyki…");
+    setFailed(false);
     try {
       const result = restore ? await reader.restore(token) : await reader.duck(selectedId);
       const outcome = typeof result === "string" ? result : result.outcome;
       setToken(restore ? "" : typeof result === "string" ? "" : result.restorationToken);
-      setNotice(outcome === "manual_override" ? "Wykryto zmianę użytkownika — pozostawiono jego głośność." : restore ? "Przywrócono głośność." : "Muzyka ściszona zgodnie z ustawieniami.");
+      if(outcome === "manual_override") notifications.warning("Wykryto zmianę użytkownika — pozostawiono jego głośność.");
+      else notifications.success(restore ? "Przywrócono głośność." : "Muzyka ściszona zgodnie z ustawieniami.");
       reload.current?.();
     } catch (cause) {
-      setNotice("");
-      setError(typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : String(cause));
+      setFailed(true);
+      notifications.error(typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : String(cause));
     } finally { setBusy(false); }
   }
 
@@ -37,7 +37,7 @@ export function AudioSessionPicker({ reader, player, repository, credentials }: 
     let cancelled = false;
     async function refresh() {
       setLoading(true);
-      setError("");
+      setFailed(false);
       try {
         const next = await reader.listSessions();
         const preferences = !initializedSelection.current ? await repository.load() : null;
@@ -52,7 +52,8 @@ export function AudioSessionPicker({ reader, player, repository, credentials }: 
         if (cancelled) return;
         setSessions([]);
         setSelectedId("");
-        setError(cause instanceof Error ? cause.message :
+        setFailed(true);
+        notifications.error(cause instanceof Error ? cause.message :
           typeof cause === "object" && cause !== null && "message" in cause
             ? String(cause.message) : "Nie udało się pobrać sesji audio.");
       } finally {
@@ -73,8 +74,7 @@ export function AudioSessionPicker({ reader, player, repository, credentials }: 
           {loading ? "Odświeżanie…" : "Odśwież listę"}
         </button>
       </div>
-      {error && <p role="alert" className="mt-4 text-red-300">{error}</p>}
-      {!loading && !error && sessions.length === 0 && <p role="status" className="mt-4">Brak sesji. Włącz muzykę i odśwież listę.</p>}
+      {!loading && !failed && sessions.length === 0 && <p role="status" className="mt-4">Brak sesji. Włącz muzykę i odśwież listę.</p>}
       <fieldset disabled={loading || busy || playbackBusy || !!token} className="mt-4 space-y-3">
         <legend className="sr-only">Wybierz jedną sesję audio</legend>
         {sessions.map(session => (
@@ -92,7 +92,7 @@ export function AudioSessionPicker({ reader, player, repository, credentials }: 
         <button type="button" disabled={busy || playbackBusy || loading || !selectedId || !!token} onClick={() => void changeVolume(false)} className="rounded-lg bg-teal-700 px-4 py-2 disabled:opacity-50">Ścisz muzykę</button>
         <button type="button" disabled={busy || playbackBusy} onClick={() => void changeVolume(true)} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50">Przywróć głośność</button>
       </div>
-      <p role="status" className="mt-3 text-sm text-teal-300">{notice}</p>
+      {busy && <p role="status" className="mt-3 text-sm text-teal-300">Zmienianie głośności…</p>}
       <p className="mt-4 text-sm text-slate-400">Lista jest migawką. Ręczna zmiana poziomu w mikserze Windows ma pierwszeństwo przed przywróceniem.</p>
       <PlaybackTest player={player} sessionId={selectedId} deviceId={sessions.find(session => session.id === selectedId)?.deviceId} disabled={busy || !!token} onBusy={setPlaybackBusy} />
       <SettingsSummary repository={repository} credentials={credentials} player={player} selected={sessions.find(session => session.id === selectedId) ? { id: selectedId, name: sessions.find(session => session.id === selectedId)!.displayName } : null} disabled={busy || playbackBusy} />

@@ -66,8 +66,12 @@ export interface AppSettings {
   newsSourceUrls: string[];
 }
 
-export type BroadcastState =
-  | { phase: "disabled" }
-  | { phase: "waiting"; nextBroadcastAt: string }
-  | { phase: "preparing" | "broadcasting" | "restoring" }
-  | { phase: "error"; message: string };
+export type BroadcastPhase = "idle" | "preparing" | "waiting" | "ducking" | "playing" | "restoring" | "error";
+export interface BroadcastState {
+  phase: BroadcastPhase;
+  nextBroadcastAt: string | null;
+  remainingMs: number | null;
+  ready: boolean;
+  message: string | null;
+  cycle: number;
+}
