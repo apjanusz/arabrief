@@ -13,6 +13,8 @@
     "windows": [
       {
         "title": "AraBrief",
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows",
         "width": 1200,
         "height": 820,
         "minWidth": 360,

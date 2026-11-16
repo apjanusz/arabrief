@@ -24,6 +24,7 @@ pub struct AppSettings {
     pub open_ai_voice: String,
     pub text_model: String,
     pub auto_start: bool,
+    pub start_scheduler_on_launch: bool,
     pub language: String,
     pub news_source_urls: Vec<String>,
 }
@@ -97,6 +98,8 @@ impl SettingsRepository {
         let mut db = Connection::open(path).map_err(|e| e.to_string())?;
         db.pragma_update(None, "foreign_keys", "ON")
             .map_err(|e| e.to_string())?;
+        db.pragma_update(None, "synchronous", "FULL")
+            .map_err(|e| e.to_string())?;
         db.busy_timeout(Duration::from_secs(5))
             .map_err(|e| e.to_string())?;
         migrate(&mut db).map_err(|e| e.to_string())?;
@@ -113,12 +116,19 @@ impl SettingsRepository {
             let id: Option<String> = row.get(0)?;
             let name: Option<String> = row.get(1)?;
             Ok(AppSettings {
-                version: 1, preferred_audio_source: id.zip(name).map(|(id,name)| PreferredAudioSource { id, name }),
+                version: 1, start_scheduler_on_launch: false, preferred_audio_source: id.zip(name).map(|(id,name)| PreferredAudioSource { id, name }),
                 interval_ms: row.get(2)?, duck_volume: row.get(3)?, fade_out_ms: row.get(4)?, fade_in_ms: row.get(5)?, narrator_volume: row.get(6)?,
                 broadcast_min_duration_ms: row.get(7)?, broadcast_max_duration_ms: row.get(8)?, open_ai_voice: row.get(9)?, text_model: String::new(), auto_start: row.get(10)?, language: row.get(11)?, topics: vec![], news_source_urls: vec![],
             })
         }).map_err(|e| e.to_string())?;
         settings.topics = read_list(&db, "SELECT topic FROM settings_topics ORDER BY position")?;
+        settings.start_scheduler_on_launch = db
+            .query_row(
+                "SELECT start_scheduler_on_launch FROM settings WHERE id=1",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
         settings.text_model = db
             .query_row("SELECT text_model FROM settings WHERE id=1", [], |r| {
                 r.get(0)
@@ -139,6 +149,11 @@ impl SettingsRepository {
             .map_err(|_| "Repozytorium ustawień niedostępne")?;
         let tx = db.transaction().map_err(|e| e.to_string())?;
         let source = settings.preferred_audio_source.as_ref();
+        tx.execute(
+            "UPDATE settings SET start_scheduler_on_launch=?1 WHERE id=1",
+            [settings.start_scheduler_on_launch],
+        )
+        .map_err(|e| e.to_string())?;
         tx.execute(
             "UPDATE settings SET text_model=?1 WHERE id=1",
             [&settings.text_model],
@@ -186,6 +201,7 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
         include_str!("../migrations/006_article_materials.sql"),
         include_str!("../migrations/007_article_history.sql"),
         include_str!("../migrations/008_pipeline_recovery.sql"),
+        include_str!("../migrations/009_background.sql"),
     ];
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
@@ -206,15 +222,21 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
 
 #[tauri::command]
 pub async fn settings_load(
+    app: tauri::AppHandle,
     repo: tauri::State<'_, std::sync::Arc<SettingsRepository>>,
 ) -> Result<AppSettings, String> {
     let repo = repo.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || repo.load())
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut settings = repo.load()?;
+        settings.auto_start = crate::background::autostart_enabled(&app)?;
+        Ok(settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 #[tauri::command]
 pub async fn settings_save(
+    app: tauri::AppHandle,
     settings: AppSettings,
     repo: tauri::State<'_, std::sync::Arc<SettingsRepository>>,
     audio: tauri::State<'_, crate::audio::DuckingController>,
@@ -228,7 +250,17 @@ pub async fn settings_save(
         let _save_guard = SAVE_PIPELINE
             .lock()
             .map_err(|_| "Zapis ustawień niedostępny".to_string())?;
-        repo.save(&settings)?;
+        settings.validate()?;
+        let previous_autostart = crate::background::autostart_enabled(&app)?;
+        crate::background::set_autostart(&app, settings.auto_start)?;
+        if let Err(error) = repo.save(&settings) {
+            if let Err(rollback) = crate::background::set_autostart(&app, previous_autostart) {
+                return Err(format!(
+                    "{error}. Nie udało się cofnąć autostartu: {rollback}"
+                ));
+            }
+            return Err(error);
+        }
         apply(&settings, &audio, &player);
         Ok(())
     })
@@ -285,7 +317,7 @@ mod tests {
             let before_schema=schema(db);let before_counts=history_counts(db);
             migrate(db).unwrap();migrate(db).unwrap();
             assert_eq!(schema(db),before_schema);assert_eq!(history_counts(db),before_counts);
-            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),8);
+            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),9);
             assert_eq!(db.query_row("SELECT text FROM content_broadcasts WHERE id=1",[],|r|r.get::<_,String>(0)).unwrap(),"Zapisany scenariusz");
             Ok(())
         }).unwrap();
@@ -318,7 +350,7 @@ mod tests {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            9
         );
     }
     #[test]
@@ -345,23 +377,45 @@ mod tests {
             let before = Connection::open(&target).unwrap();
             let before_schema = schema(&before);
             let before_counts = history_counts(&before);
-            let before_settings = SettingsRepository(Mutex::new(before)).load().unwrap();
+            // Capture every existing setting before migration, including v8 files
+            // which do not yet have start_scheduler_on_launch.
+            let mut statement = before.prepare("SELECT * FROM settings WHERE id=1").unwrap();
+            let columns = statement.column_count();
+            let before_values = statement
+                .query_row([], |row| {
+                    (0..columns)
+                        .map(|index| row.get::<_, rusqlite::types::Value>(index))
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                })
+                .unwrap();
+            drop(statement);
+            drop(before);
             let repo = SettingsRepository::open(&target).unwrap();
-            assert_eq!(repo.load().unwrap(), before_settings);
-            repo.save(&before_settings).unwrap();
-            assert_eq!(repo.load().unwrap(), before_settings);
+            let settings = repo.load().unwrap();
+            repo.save(&settings).unwrap();
+            assert_eq!(repo.load().unwrap(), settings);
             repo.with_database(|db| {
+                let after_values = db
+                    .query_row("SELECT * FROM settings WHERE id=1", [], |row| {
+                        (0..columns)
+                            .map(|index| row.get::<_, rusqlite::types::Value>(index))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap();
+                assert_eq!(after_values, before_values);
                 let after_schema = schema(db);
-                assert!(
-                    before_schema
+                assert!(before_schema.iter().all(|entry| if entry.1 == "settings" {
+                    after_schema
                         .iter()
-                        .all(|entry| after_schema.contains(entry))
-                );
+                        .any(|after| after.0 == entry.0 && after.1 == entry.1)
+                } else {
+                    after_schema.contains(entry)
+                }));
                 assert_eq!(history_counts(db), before_counts);
                 assert_eq!(
                     db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                         .unwrap(),
-                    8
+                    9
                 );
                 Ok(())
             })
@@ -381,6 +435,7 @@ mod tests {
         assert_eq!(settings.fade_out_ms, 3000);
         assert_eq!(settings.text_model, "gpt-5-mini");
         assert!(!settings.auto_start);
+        assert!(!settings.start_scheduler_on_launch);
         assert_eq!(
             (
                 settings.broadcast_min_duration_ms,
@@ -389,6 +444,7 @@ mod tests {
             (120000, 180000)
         );
         settings.topics = vec!["Nauka".into(), "Świat".into()];
+        settings.start_scheduler_on_launch = true;
         settings.preferred_audio_source = Some(PreferredAudioSource {
             id: "endpoint|instance".into(),
             name: "Muzyka".into(),

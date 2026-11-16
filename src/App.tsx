@@ -7,6 +7,7 @@ import { newsProvider } from "./platform/tauri/news";
 import { contentGenerator } from "./platform/tauri/content";
 import { speechProvider } from "./platform/tauri/speech";
 import { preparationRecovery } from "./platform/tauri/recovery";
+import { backgroundLifecycle } from "./platform/tauri/background";
 import { useAraBrief } from "./app/useAraBrief";
 import { Dashboard } from "./app/views/Dashboard";
 import { Interests } from "./app/views/Interests";
@@ -15,7 +16,7 @@ import { Icon } from "./app/components/Icon";
 import logo from "./assets/brand/AraBrief-logo-ciemne.svg";
 import { ToastViewport } from "./app/notifications/ToastViewport";
 
-const services = { recovery: preparationRecovery, settings: settingsRepository, audio: audioSessionReader, player: audioPlayer, news: newsProvider, content: contentGenerator, speech: speechProvider };
+const services = { background: backgroundLifecycle, recovery: preparationRecovery, settings: settingsRepository, audio: audioSessionReader, player: audioPlayer, news: newsProvider, content: contentGenerator, speech: speechProvider };
 const pages = {
   dashboard: { title: "Twoje studio", subtitle: "Muzyka zostaje. Świat dołącza.", icon: "radio" },
   topics: { title: "Zainteresowania", subtitle: "Wiadomości, które mają dla Ciebie znaczenie.", icon: "topics" },

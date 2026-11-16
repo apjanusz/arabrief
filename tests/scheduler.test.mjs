@@ -28,8 +28,16 @@ function fixture(overrides = {}) {
   };
   const scheduler = new AutomaticBroadcastScheduler(ports);
   scheduler.subscribe(state=>states.push(state));
-  return { scheduler,events,states,ports,advance,sleep: ms=>{wall+=ms;scheduler.wake();},resumeElapsed: ms=>{wall+=ms;mono+=ms;scheduler.wake();},timerCount:()=>timers.size };
+  return { scheduler,events,states,ports,advance,elapseWithoutTimers:ms=>{wall+=ms;mono+=ms;},sleep: ms=>{wall+=ms;scheduler.wake();},resumeElapsed: ms=>{wall+=ms;mono+=ms;scheduler.wake();},timerCount:()=>timers.size };
 }
+test("native wake runs a hidden schedule when browser timers do not fire, and never restarts after stop",async()=>{
+  const f=fixture(); await f.scheduler.start(settings,{script,audio});
+  f.elapseWithoutTimers(1000); assert.equal(f.events.includes("played"),false);
+  f.scheduler.wake();f.scheduler.wake();await flush();
+  assert.equal(f.events.filter(e=>e==="played").length,1);
+  await f.scheduler.stop(); f.elapseWithoutTimers(1000);f.scheduler.wake();await flush();
+  assert.equal(f.events.filter(e=>e==="played").length,1);assert.equal(f.timerCount(),0);
+});
 test("prepares immediately, waits full interval, plays once, then starts next full interval",async()=>{
   const f=fixture();await f.scheduler.start(settings);assert.equal(f.scheduler.getState().phase,"preparing");await flush();
   assert.equal(f.scheduler.getState().phase,"waiting");assert.equal(f.scheduler.getState().ready,true);

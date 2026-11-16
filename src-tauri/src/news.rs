@@ -412,9 +412,11 @@ fn validate_topics(topics: Vec<String>) -> Result<Vec<String>, String> {
 }
 #[tauri::command]
 pub async fn news_fetch(
+    app: tauri::AppHandle,
     topics: Vec<String>,
     service: tauri::State<'_, Arc<NewsService>>,
 ) -> Result<NewsResult, String> {
+    crate::background::ensure_running(&app)?;
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || service.fetch(topics))
         .await

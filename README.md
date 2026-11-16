@@ -13,11 +13,73 @@ a klucz API w Windows Credential Manager.
 Odczyt sesji, ducking i natywne odtwarzanie WAV/MP3 są aktywne. Dostępny jest test
 całego cyklu z muzyką i dwutonowym nagraniem WAV.
 
+## Zasobnik, autostart i odzyskiwanie audio
+
+Zamknięcie okna (X / Alt+F4) ukrywa AraBrief. Harmonogram zachowuje termin,
+przygotowanie i odtwarzanie działają dalej. Ikona zasobnika ma menu „Otwórz AraBrief”,
+„Start” / „Stop” oraz „Zakończ aplikację”. Kliknięcie ikony przywraca okno.
+Start jest dostępny po wczytaniu ustawień, wybraniu dostępnej sesji i tematów.
+Stop zatrzymuje harmonogram lub bieżącą audycję; muzyka nadal gra.
+Ponowne uruchomienie programu otwiera istniejącą instancję.
+
+W ustawieniach dodano dwie niezależne opcje, obie domyślnie wyłączone:
+
+- `autoStart`: oficjalny plugin autostart Tauri rejestruje uruchomienie po zalogowaniu
+  do Windows z argumentem `--autostart`; okno pozostaje ukryte. Odczyt ustawień
+  sprawdza rzeczywisty stan rejestracji Windows. Zapis waliduje ustawienia,
+  aktualizuje autostart i transakcyjnie zapisuje SQLite, z próbą cofnięcia autostartu
+  w razie błędu bazy. Rejestracja Windows i SQLite nie tworzą wspólnej transakcji.
+- `startSchedulerOnLaunch`: osobna zgoda na start harmonogramu i płatne API po
+  uruchomieniu aplikacji. Pierwsza audycja czeka pełny interwał. Bez tej zgody
+  uruchomienie z Windowsem ani odzyskiwanie stanu nie rozpoczyna odtwarzania.
+
+Rust utrzymuje zasobnik i wysyła aktywnemu harmonogramowi zdarzenie co sekundę.
+Webview pozostaje załadowany po ukryciu. Konfiguracja Tauri `additionalBrowserArgs`
+wyłącza ograniczanie timerów i pracy renderera w tle w WebView2; nie korzysta z
+`backgroundThrottling`, które nie jest obsługiwane na Windows. Domena harmonogramu
+otrzymuje wybudzenie przez port `BackgroundLifecycle`, bez zależności od Tauri.
+Uśpienie komputera nadal wstrzymuje pracę; przeterminowana audycja jest pomijana.
+
+„Zakończ aplikację” wstrzymuje `ExitRequested`, blokuje nowe odtwarzanie i nowe
+komendy przygotowania, anuluje oba schedulery oraz syntezę, zatrzymuje lektora
+i przywraca muzykę w Rust. Natywne sprzątanie działa także przy braku odpowiedzi UI;
+oczekiwanie na potwierdzenie warstwy UI ma limit 3 sekund po sprzątaniu audio.
+
+Migracja 009 dodaje `audio_recovery`. Rust zapisuje oryginalną głośność, dokładną
+tożsamość endpointu i instancji sesji oraz wartości przed i po planowanym zapisie,
+z SQLite `synchronous=FULL`, przed każdym zapisem Core Audio. Dzięki temu awaria
+w trakcie fade również pozostawia snapshot. Sukces lub ręczna zmiana głośności
+usuwa zapis, błąd API zachowuje go do ponownej próby. Po restarcie odzyskiwanie
+wykonuje się przed dopuszczeniem kolejnego ściszenia; nie wznawia starej audycji.
+
+Windows nie daje atomowego odczytu i zapisu głośności względem miksera ani kodu
+wykonywanego po wymuszonym zabiciu procesu. Odzyskiwanie następuje przy kolejnym
+uruchomieniu i dotyczy wyłącznie tej samej instancji sesji, jeśli jej obecny poziom
+odpowiada jednej z zapisanych wartości. Inny poziom pozostaje bez zmian. Nie można
+odtworzyć historii zmian miksera podczas przerwy w działaniu AraBrief.
+Niedostępny endpoint lub błąd API zachowuje zapis i blokuje nowe ściszenie do
+odzyskania; jeśli endpoint jest dostępny, lecz dawna sesja wygasła, zapis jest
+usuwany bez zmieniania nowej sesji. Nie ma zmiany globalnej głośności ani pauzowania.
+
+Kontrole: `npm run test:background`, `npm run test:scheduler`, `npm run test:manual`,
+`cargo test --manifest-path src-tauri/Cargo.toml --lib` oraz standardowy build i clippy.
+Testy obejmują IPC zasobnika, potwierdzenie zamknięcia, anulowanie i błędy odtwarzania,
+awarię po obu stronach zapisu audio, ponowne otwarcie SQLite, ręczną zmianę miksera
+i niepowodzenie zapisu dziennika. Testy jednostkowe nie zmieniają prawdziwej głośności.
+Ręcznie sprawdź działanie z ukrytym oknem przez kilka interwałów, Start/Stop w zasobniku,
+wyjście podczas przygotowania/fade/odtwarzania i ponowne uruchomienie po zabiciu
+procesu podczas audycji. Autostart wymaga sprawdzenia po ponownym zalogowaniu Windows.
+
+Oficjalne mechanizmy: [zasobnik Tauri 2](https://v2.tauri.app/learn/system-tray/),
+[autostart](https://v2.tauri.app/plugin/autostart/),
+[single-instance](https://v2.tauri.app/plugin/single-instance/),
+[konfiguracja WebView2](https://v2.tauri.app/reference/config/#additionalbrowserargs).
+
 ## Uruchomienie na Windows
 
 Wymagania: Node.js 22.12+ (lub obsługiwana nowsza wersja LTS), npm, Rust stable
 z targetem MSVC, Visual Studio Build Tools z C++ i Windows SDK oraz WebView2 Runtime.
-Narzędzia muszą być dostępne w PATH.
+Narzędzia muszą być dostępne w PATH. Oficjalne wtyczki Tauri wymagają Rust 1.90+.
 
 ```powershell
 npm ci
@@ -155,7 +217,8 @@ zachowany, jeżeli automatyczna próba przywrócenia nie powiodła się.
 Normalne ExitRequested jest wstrzymywane, a wątek audio kończy trwający fade i
 wykonuje restore przed wyjściem. Zmiany użytkownika nadal mają pierwszeństwo.
 Niedostępnej lub wygasłej sesji nie da się przywrócić; błąd zamknięcia jest raportowany
-na stderr. Wymuszone zabicie procesu/awaria systemu nie wykonuje tego mechanizmu.
+na stderr. Wymuszone zabicie procesu/awaria systemu nie wykonuje kodu zamykania;
+trwały snapshot pozwala podjąć próbę odzyskania przy następnym uruchomieniu.
 
 Testy logiki fade używają fikcyjnego adaptera i nie zmieniają realnej głośności.
 Ręcznie sprawdź: fade 80% → 12% → 80%, ręczną zmianę w mikserze w trakcie fade i po
@@ -227,7 +290,8 @@ Nie zawiera klucza API. Migracje w `src-tauri/migrations` są stosowane w transa
 IMMEDIATE, wersjonowane przez PRAGMA user_version. Nowszy nieobsługiwany schemat,
 błąd migracji lub niepoprawne dane przerywają inicjalizację zamiast resetować ustawienia.
 
-Obsługiwany schemat SQLite ma wersję 8. Zachowane migracje 006–007 odpowiadają
+Obsługiwany schemat SQLite ma wersję 9. Migracja 009 dodaje dziennik odzyskiwania
+audio i opcję startu harmonogramu. Zachowane migracje 006–007 odpowiadają
 za dodatkowe tabele materiałów artykułów; pozostają w historii schematu także
 po cofnięciu kodu korzystającego z tych tabel. Baza w wersji 7 przechodzi migrację 008 bez
 ponownego wykonywania migracji i bez obniżania jej numeru. Git stash ani cofnięcie
@@ -245,12 +309,13 @@ z informacją o numerze bazy i maksymalnej obsługiwanej wersji.
 | broadcastMinDurationMs / broadcastMaxDurationMs | 120000 / 180000 | uporządkowany zakres 30 s – 15 min |
 | topics | [] | do 30 unikalnych tematów |
 | openAiVoice | alloy | identyfikator; bez weryfikacji przez OpenAI |
-| autoStart | false | bool; zapisane pole nie uruchamia aplikacji samoczynnie, Start naciska użytkownik |
+| autoStart | false | bool; oficjalny plugin autostart uruchamia aplikację w zasobniku po zalogowaniu do Windows |
+| startSchedulerOnLaunch | false | bool; osobna zgoda na automatyczny harmonogram i płatne przygotowanie audycji |
 | language / newsSourceUrls | pl / [] | preferencje przyszłego modułu wiadomości |
 
 `settings_load()` zwraca kompletny AppSettings; `settings_save({ settings })` zapisuje
 pełny, zwalidowany snapshot. Numer wersji DTO (version: 1) jest niezależny od wersji
-schematu bazy (obecnie 8). Nieznane pola są odrzucane, więc apiKey nie może zostać
+schematu bazy (obecnie 9). Nieznane pola są odrzucane, więc apiKey nie może zostać
 przemycone jako pole ustawień. Tematy i adresy są w osobnych tabelach; zapis całego
 snapshotu jest atomowy. Kontrakty i adapter TS: `src/platform/tauri/settings.ts`.
 

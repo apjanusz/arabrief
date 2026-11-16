@@ -26,7 +26,7 @@ export function SettingsSummary({ repository, credentials, player, selected, dis
   return (
     <details className="mt-6 border-t border-slate-700 pt-5">
       <summary className="cursor-pointer font-medium">Zapisane ustawienia i klucz API</summary>
-      {settings && <p className="mt-3 text-sm text-slate-400">Źródło: {settings.preferredAudioSource?.name ?? "Nie wybrano"}. Interwał: {settings.intervalMs / 60000} min. Muzyka: {Math.round(settings.duckVolume * 100)}% oryginału. Fade: {settings.fadeOutMs / 1000}/{settings.fadeInMs / 1000} s. Audycja: {settings.broadcastMinDurationMs / 60000}–{settings.broadcastMaxDurationMs / 60000} min. Głos: {settings.openAiVoice}. Autostart: {settings.autoStart ? "zapisany jako włączony" : "wyłączony"} (harmonogram nie jest jeszcze podłączony).</p>}
+      {settings && <p className="mt-3 text-sm text-slate-400">Źródło: {settings.preferredAudioSource?.name ?? "Nie wybrano"}. Interwał: {settings.intervalMs / 60000} min. Muzyka: {Math.round(settings.duckVolume * 100)}% oryginału. Fade: {settings.fadeOutMs / 1000}/{settings.fadeInMs / 1000} s. Audycja: {settings.broadcastMinDurationMs / 60000}–{settings.broadcastMaxDurationMs / 60000} min. Głos: {settings.openAiVoice}. Autostart: {settings.autoStart ? "włączony" : "wyłączony"}.</p>}
       <button type="button" disabled={busy || disabled || !selected || !settings} className="mt-3 rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => {
         const current = await repository.load();
         const next = { ...current, preferredAudioSource: selected, narratorVolume: (await player.getStatus()).volume };

@@ -13,6 +13,10 @@ pub struct DuckResult {
 }
 
 pub(super) enum Command {
+    Initialize(
+        super::journal::Journal,
+        mpsc::Sender<Result<Option<String>, String>>,
+    ),
     Duck(String, DuckConfig, mpsc::Sender<Result<DuckResult, String>>),
     Restore(String, mpsc::Sender<Result<Outcome, String>>),
     Shutdown(mpsc::Sender<Result<(), String>>),
@@ -32,6 +36,12 @@ pub struct DuckingController {
 }
 
 impl DuckingController {
+    pub(crate) fn initialize(
+        &self,
+        repository: Arc<crate::settings::SettingsRepository>,
+    ) -> Result<Option<String>, String> {
+        self.request(|reply| Command::Initialize(super::journal::Journal(repository), reply))
+    }
     pub(crate) fn configure(&self, ratio: f32, fade_out_ms: u32, fade_in_ms: u32) {
         *self.config.write().unwrap_or_else(|e| e.into_inner()) = DuckConfig {
             ratio,
@@ -58,6 +68,9 @@ impl DuckingController {
             #[cfg(not(windows))]
             for command in receiver {
                 match command {
+                    Command::Initialize(_, reply) => {
+                        let _ = reply.send(Ok(None));
+                    }
                     Command::Duck(_, _, reply) => {
                         let _ = reply.send(Err("Windows required".into()));
                     }
@@ -114,10 +127,12 @@ pub struct RestoreRequest {
 
 #[tauri::command]
 pub async fn audio_duck(
+    app: tauri::AppHandle,
     request: DuckRequest,
     controller: tauri::State<'_, DuckingController>,
     player: tauri::State<'_, crate::player::AudioPlayer>,
 ) -> Result<DuckResult, NativeError> {
+    crate::background::ensure_running(&app).map_err(NativeError::audio)?;
     if player.is_busy() {
         return Err(NativeError::audio("Trwa odtwarzanie audycji"));
     }

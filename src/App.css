@@ -248,6 +248,8 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
 .settings-save { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 15px; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 30px; }
 .settings-save.has-changes { position: sticky; bottom: 16px; border-color: #7f6935; box-shadow: 0 6px 20px #0003; }
 .settings-form input, .settings-form select { scroll-margin-block: 40px 150px; }
+.settings-form .checkbox-option { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.settings-form input[type="checkbox"] { width: 20px; min-height: 20px; height: 20px; flex: 0 0 20px; padding: 0; accent-color: var(--brand-yellow); }
 .settings-save>p { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 11px; }
 .settings-save>p svg { color: var(--text-success); }
 .settings-save.has-changes>p svg { color: var(--brand-yellow); }

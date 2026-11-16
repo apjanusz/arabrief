@@ -3,9 +3,13 @@ import type { PlayRequest, PlaybackStatus } from "../../modules/audio/AudioPlaye
 import type { AppSettings, BroadcastScript, SpeechAsset } from "../../domain/models";
 import type { NewsResult } from "../../modules/news/NewsProvider";
 import type { KeyValidation } from "../../modules/settings/CredentialStore";
+import type { BackgroundLaunch, BackgroundStatus } from "../../modules/scheduler/BackgroundLifecycle";
 
 /** Playback commands reject with a string; session commands use NativeError. */
 export interface NativeCommands {
+  background_connect: { args: undefined; result: BackgroundLaunch };
+  background_status: { args: { status: BackgroundStatus }; result: null };
+  background_stopped: { args: undefined; result: null };
   broadcast_restore: { args: undefined; result: { script: BroadcastScript; audio: SpeechAsset | null } | null };
   broadcast_claim: { args: { broadcastId: string }; result: null };
   broadcast_complete: { args: { broadcastId: string }; result: null };

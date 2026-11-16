@@ -485,6 +485,7 @@ pub async fn speech_generate(
     job_id: String,
     service: tauri::State<'_, Arc<SpeechService>>,
 ) -> Result<SpeechAsset, String> {
+    crate::background::ensure_running(&app)?;
     let service = service.inner().clone();
     let (_job, mut cancel) = service.start(&job_id)?;
     let root = app

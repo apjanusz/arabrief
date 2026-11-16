@@ -350,9 +350,11 @@ impl ContentService {
 }
 #[tauri::command]
 pub async fn content_generate(
+    app: tauri::AppHandle,
     article_ids: Vec<String>,
     service: tauri::State<'_, Arc<ContentService>>,
 ) -> Result<Broadcast, ContentFailure> {
+    crate::background::ensure_running(&app).map_err(ContentFailure::from)?;
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || service.generate(article_ids, &OpenAiGenerator))
         .await

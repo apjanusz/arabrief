@@ -2,6 +2,7 @@ use super::*;
 use crate::audio::{
     ducking::{Command, DuckResult},
     fade::{self, Outcome, Volume},
+    journal::{self, Journal, JournaledVolume},
 };
 use std::sync::{
     Arc,
@@ -101,36 +102,42 @@ impl Volume for NativeVolume {
     }
 }
 
-fn open(id: &str) -> std::result::Result<NativeVolume, String> {
+fn open(id: &str) -> std::result::Result<Option<NativeVolume>, String> {
     let control = unsafe {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).map_err(|e| e.to_string())?;
-        let devices = enumerator
-            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+        let device_id = id
+            .split_once('|')
+            .ok_or("Invalid audio session identity")?
+            .0;
+        let wide: Vec<u16> = device_id.encode_utf16().chain(Some(0)).collect();
+        let original_device = enumerator
+            .GetDevice(PCWSTR(wide.as_ptr()))
             .map_err(|e| e.to_string())?;
+        if original_device.GetState().map_err(|e| e.to_string())? != DEVICE_STATE_ACTIVE {
+            return Err(
+                "Wyjście muzyki jest niedostępne. Zapis głośności pozostaje do ponownej próby."
+                    .into(),
+            );
+        }
+        let manager: IAudioSessionManager2 = original_device
+            .Activate(CLSCTX_ALL, None)
+            .map_err(|e| e.to_string())?;
+        let sessions = manager.GetSessionEnumerator().map_err(|e| e.to_string())?;
         let mut found = None;
-        for i in 0..devices.GetCount().map_err(|e| e.to_string())? {
-            let candidate = (|| -> Result<Option<IAudioSessionControl>> {
-                let device = devices.Item(i)?;
-                let device_id = take_string(device.GetId()?)?;
-                let manager: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
-                let sessions = manager.GetSessionEnumerator()?;
-                for j in 0..sessions.GetCount()? {
-                    let control = sessions.GetSession(j)?;
-                    if let Ok(Some(dto)) = read_session(&control, &device_id)
-                        && dto.id == id
-                    {
-                        return Ok(Some(control));
-                    }
-                }
-                Ok(None)
-            })();
-            if let Ok(Some(control)) = candidate {
+        for index in 0..sessions.GetCount().map_err(|e| e.to_string())? {
+            let control = sessions.GetSession(index).map_err(|e| e.to_string())?;
+            if let Some(dto) = read_session(&control, device_id).map_err(|e| e.to_string())?
+                && dto.id == id
+            {
                 found = Some(control);
                 break;
             }
         }
-        found.ok_or("Session no longer available; refresh and select again")?
+        match found {
+            Some(control) => control,
+            None => return Ok(None),
+        }
     };
     let changed = Arc::new(AtomicBool::new(false));
     let disconnected = Arc::new(AtomicBool::new(false));
@@ -143,18 +150,18 @@ fn open(id: &str) -> std::result::Result<NativeVolume, String> {
         .cast::<ISimpleAudioVolume>()
         .map_err(|e| e.to_string())?;
     unsafe { control.RegisterAudioSessionNotification(&events) }.map_err(|e| e.to_string())?;
-    Ok(NativeVolume {
+    Ok(Some(NativeVolume {
         control,
         volume,
         events,
         changed,
         disconnected,
-    })
+    }))
 }
 
 struct Active {
     token: String,
-    volume: NativeVolume,
+    volume: JournaledVolume<NativeVolume>,
     original: f32,
     expected: f32,
     fade_in_ms: u32,
@@ -170,21 +177,58 @@ impl Active {
     }
 }
 
+fn recover_saved(journal: &Journal) -> std::result::Result<Option<String>, String> {
+    let Some(snapshot) = journal.load()? else {
+        return Ok(None);
+    };
+    let Some(volume) = open(&snapshot.session_id)? else {
+        // Instance identifiers cannot be applied to a restarted player/session.
+        journal.clear()?;
+        return Ok(Some("Poprzednia sesja muzyki już nie istnieje. Windows nie pozwala przywrócić jej głośności; nie zmieniono innych sesji.".into()));
+    };
+    let outcome = journal::recover(volume, journal, &snapshot)?;
+    Ok(Some(
+        match outcome {
+            Outcome::Completed => {
+                "Przywrócono głośność muzyki po nieoczekiwanym zakończeniu AraBrief."
+            }
+            Outcome::ManualOverride => {
+                "Głośność zmieniła się po przerwaniu AraBrief. Zachowano aktualny poziom muzyki."
+            }
+        }
+        .into(),
+    ))
+}
+
 pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
     let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok() };
     let _apartment = initialized.as_ref().ok().map(|_| Apartment);
     let mut active: Option<Active> = None;
     let mut generation = 0u64;
+    let mut journal: Option<Journal> = None;
     for command in receiver {
         match command {
+            Command::Initialize(value, reply) => {
+                let result = initialized
+                    .as_ref()
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| recover_saved(&value));
+                journal = Some(value);
+                let _ = reply.send(result);
+            }
             Command::Duck(id, config, reply) => {
                 let result = (|| -> std::result::Result<DuckResult, String> {
                     initialized.as_ref().map_err(|e| e.to_string())?;
                     if active.is_some() {
                         return Err("A ducking cycle is already active; restore it first".into());
                     }
-                    let volume = open(&id)?;
+                    let journal = journal.as_ref().ok_or("Audio recovery not initialized")?;
+                    // Retry retained API failures before allowing any new ducking.
+                    recover_saved(journal)?;
+                    let volume = open(&id)?
+                        .ok_or("Session no longer available; refresh and select again")?;
                     let original = volume.get()?;
+                    let volume = JournaledVolume::new(volume, journal.clone(), id, original)?;
                     generation += 1;
                     let token = format!("duck-{generation}");
                     // Store snapshot before the first write, even if the fade fails.
@@ -208,7 +252,7 @@ pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
                         }),
                         Err(error) => {
                             // Best effort rollback. Keep snapshot if rollback fails for retry at shutdown.
-                            if current.restore().is_ok() {
+                            if current.restore().is_ok() && journal.clear().is_ok() {
                                 active = None;
                             }
                             Err(error)
@@ -219,28 +263,47 @@ pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
                 if reply.send(result).is_err()
                     && let Some(current) = active.as_mut()
                     && current.restore().is_ok()
+                    && journal
+                        .as_ref()
+                        .is_some_and(|journal| journal.clear().is_ok())
                 {
                     active = None;
                 }
             }
             Command::Restore(token, reply) => {
-                let result = match active.as_mut() {
+                let mut result = match active.as_mut() {
                     Some(current) if token.is_empty() || current.token == token => {
                         current.restore()
                     }
                     Some(_) => Err("Invalid restoration token".into()),
-                    None => Ok(Outcome::Completed),
+                    None => match &journal {
+                        Some(journal) => recover_saved(journal).map(|_| Outcome::Completed),
+                        None => Ok(Outcome::Completed),
+                    },
                 };
+                if result.is_ok()
+                    && let Some(journal) = &journal
+                {
+                    result = journal.clear().map(|_| result.unwrap());
+                }
                 if result.is_ok() {
                     active = None;
                 }
                 let _ = reply.send(result);
             }
             Command::Shutdown(reply) => {
-                let result = active
+                let mut result = active
                     .as_mut()
                     .map(|current| current.restore().map(|_| ()))
-                    .unwrap_or(Ok(()));
+                    .unwrap_or_else(|| match &journal {
+                        Some(journal) => recover_saved(journal).map(|_| ()),
+                        None => Ok(()),
+                    });
+                if result.is_ok()
+                    && let Some(journal) = &journal
+                {
+                    result = journal.clear();
+                }
                 // Drop subscription and interfaces before acknowledging shutdown.
                 active = None;
                 let _ = reply.send(result);
@@ -249,7 +312,10 @@ pub(in crate::audio) fn run(receiver: mpsc::Receiver<Command>) {
         }
     }
     // All COM objects must be released before CoUninitialize, including on channel disconnect.
-    if let Some(mut current) = active.take() {
-        let _ = current.restore();
+    if let Some(mut current) = active.take()
+        && current.restore().is_ok()
+        && let Some(journal) = &journal
+    {
+        let _ = journal.clear();
     }
 }

@@ -62,6 +62,7 @@ export interface AppSettings {
   openAiVoice: string;
   textModel: string;
   autoStart: boolean;
+  startSchedulerOnLaunch: boolean;
   language: string;
   newsSourceUrls: string[];
 }

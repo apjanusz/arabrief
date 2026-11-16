@@ -12,8 +12,9 @@ import { AutomaticBroadcastScheduler } from "../modules/scheduler/AutomaticBroad
 import { notifications } from "./notifications/notifications";
 import { NoUsableMaterial } from "../modules/scheduler/PreparationRecovery";
 import type { PreparationRecovery } from "../modules/scheduler/PreparationRecovery";
+import type { BackgroundLifecycle, BackgroundLaunch } from "../modules/scheduler/BackgroundLifecycle";
 
-export interface Services { recovery: PreparationRecovery; settings: SettingsRepository; audio: Pick<AudioController, "listSessions">; player: AudioPlayer; news: NewsProvider; content: ContentGenerator; speech: SpeechProvider }
+export interface Services { background?: BackgroundLifecycle; recovery: PreparationRecovery; settings: SettingsRepository; audio: Pick<AudioController, "listSessions">; player: AudioPlayer; news: NewsProvider; content: ContentGenerator; speech: SpeechProvider }
 const activePhases = ["preparing", "ducking", "playing", "restoring"];
 export const errorText = (cause: unknown): string => cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : String(cause);
 export function useAraBrief(services: Services) {
@@ -31,6 +32,10 @@ export function useAraBrief(services: Services) {
   const [testing, setTesting] = useState(false);
   const [schedule, setSchedule] = useState<BroadcastState>({ phase: "idle", nextBroadcastAt: null, remainingMs: null, ready: false, message: null, cycle: 0 });
   const stopRequested = useRef(false);
+  const quitting = useRef(false);
+  const trayAction = useRef(false);
+  const startupHandled = useRef(false);
+  const [launch, setLaunch] = useState<BackgroundLaunch | null>(null);
   const runner = useRef<ManualBroadcastRunner | null>(null);
   const scheduler = useRef<AutomaticBroadcastScheduler | null>(null);
   if (!runner.current) runner.current = new ManualBroadcastRunner({ ...services,
@@ -115,7 +120,7 @@ export function useAraBrief(services: Services) {
   const scheduledActive = schedule.phase !== "idle" && (schedule.phase !== "error" || !!schedule.nextBroadcastAt);
   const busy = running || scheduledActive || nativeBusy || testing;
   async function startSchedule() {
-    if (!settings || busy || saving) return;
+    if (!settings || busy || saving || quitting.current) return;
     if (!source) { notifications.warning("Wybierz dostępną sesję muzyki w ustawieniach."); return; }
     const seed = ready && ready.script.id !== lastPlayed?.broadcast.script.id ? ready : undefined;
     if (!seed) setReady(null);
@@ -123,7 +128,7 @@ export function useAraBrief(services: Services) {
     catch (cause) { notifications.error(errorText(cause), { title: "Nie uruchomiono harmonogramu" }); }
   }
   async function start(prepareOnly = false, useReady = true) {
-    if (!settings || busy || saving) return;
+    if (!settings || busy || saving || quitting.current) return;
     if (!prepareOnly && !source) { notifications.warning("Zapisane źródło muzyki jest niedostępne. Wybierz aktualną sesję w ustawieniach."); return; }
     setRunning(true);
     stopRequested.current = false;
@@ -145,11 +150,53 @@ export function useAraBrief(services: Services) {
     finally { setStopping(false); }
   }
   async function testSound() {
-    if (busy) return; setTesting(true);
+    if (busy || quitting.current) return; setTesting(true);
     try { const result = await services.player.play({ resourceId: "test.wav" }); if (result.phase === "ended") notifications.success("Test dźwięku zakończony."); }
     catch (cause) { notifications.error(errorText(cause), { key: "broadcast-error" }); }
     finally { setTesting(false); }
   }
+  const actions = useRef({ toggle: async () => {}, quit: async () => {}, wake: () => {} });
+  actions.current = {
+    toggle: async () => {
+      if (quitting.current || trayAction.current || stopping || saving || loading) return;
+      trayAction.current = true;
+      try { if (busy) await stop(); else await startSchedule(); }
+      finally { trayAction.current = false; }
+    },
+    quit: async () => {
+      quitting.current = true;
+      stopRequested.current = true;
+      // Both owners are cancelled before acknowledgement, including preparation.
+      const results = await Promise.allSettled([scheduler.current!.stop(), runner.current!.stop(), services.player.stop()]);
+      for (const result of results) if (result.status === "rejected") console.error(errorText(result.reason));
+    },
+    wake: () => { if (!quitting.current) scheduler.current?.wake(); },
+  };
+  useEffect(() => {
+    let alive = true;
+    let dispose: (() => void) | undefined;
+    void services.background?.connect({
+      toggle: () => alive ? actions.current.toggle() : Promise.resolve(),
+      quit: () => actions.current.quit(),
+      wake: () => { if (alive) actions.current.wake(); },
+    }).then(connection => {
+      if (!connection) return;
+      if (!alive) { connection.dispose(); return; }
+      dispose = connection.dispose;
+      setLaunch(connection.launch);
+      if (connection.launch.recoveryMessage) notifications.warning(connection.launch.recoveryMessage, { key: "audio-recovery" });
+    }).catch(cause => { if (alive) notifications.error(errorText(cause), { title: "Błąd obsługi zasobnika", key: "background-error" }); });
+    return () => { alive = false; dispose?.(); };
+  }, [services]);
+  useEffect(() => {
+    void services.background?.update({ active: busy, canStart: !busy && !loading && !saving && !!settings && !!source && settings.topics.length > 0 })
+      .catch(cause => notifications.error(errorText(cause), { title: "Błąd stanu zasobnika", key: "background-error" }));
+  }, [services, busy, loading, saving, !!settings, !!source, settings?.topics.length]);
+  useEffect(() => {
+    if (!launch || loading || !settings || startupHandled.current) return;
+    startupHandled.current = true;
+    if (launch.startScheduler && !launch.closing && !quitting.current) void startSchedule();
+  }, [launch, loading, settings]);
   return { settings, sessions, playback, stage, ready, lastPlayed, news, loading, saving, running, stopping, testing, nativeBusy, busy, source, schedule, scheduledActive,
     save, refreshSessions, reconnect, startSchedule, start, stop, testSound };
 }

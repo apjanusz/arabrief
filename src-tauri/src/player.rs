@@ -71,6 +71,11 @@ impl AudioPlayer {
             state = self.0.1.wait(state).unwrap_or_else(|e| e.into_inner());
         }
     }
+    pub fn begin_shutdown(&self) {
+        let mut state = self.state();
+        state.closing = true;
+        state.stop = true;
+    }
     pub(crate) fn set_volume(&self, volume: f32) -> Result<(), String> {
         if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
             return Err("Głośność lektora musi być w zakresie 0–1".into());
@@ -344,6 +349,7 @@ pub async fn audio_play(
     ducking: tauri::State<'_, DuckingController>,
     request: PlayRequest,
 ) -> Result<Status, String> {
+    crate::background::ensure_running(&app)?;
     player.reserve()?;
     let player = player.inner().clone();
     let ducking = ducking.inner().clone();
@@ -425,6 +431,8 @@ mod tests {
         assert!(player.reserve().is_err());
         player.stop();
         assert!(player.state().stop);
+        player.begin_shutdown();
+        assert!(player.reserve().is_err());
         player.state().busy = false;
         player.shutdown();
         assert!(player.reserve().is_err());

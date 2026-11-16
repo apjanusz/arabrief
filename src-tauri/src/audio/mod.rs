@@ -1,5 +1,6 @@
 pub(crate) mod ducking;
 mod fade;
+mod journal;
 #[cfg(windows)]
 mod windows;
 pub use ducking::DuckingController;

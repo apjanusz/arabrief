@@ -1,13 +1,13 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    };
+    use std::sync::{Arc, atomic::Ordering};
     use tauri::Manager;
-    let closing = Arc::new(AtomicBool::new(false));
-    let restored = Arc::new(AtomicBool::new(false));
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|arg| arg == "--autostart") { background::show(app); }
+        }))
+        .plugin(tauri_plugin_autostart::Builder::new().args(["--autostart"]).build())
+        .manage(Arc::new(background::Lifecycle::default()))
         .manage(audio::DuckingController::new())
         .manage(player::AudioPlayer::new())
         .setup(|app| {
@@ -17,19 +17,28 @@ pub fn run() {
                 settings::SettingsRepository::open(&directory.join("settings.sqlite3"))
                     .map_err(std::io::Error::other)?;
             let preferences = repository.load().map_err(std::io::Error::other)?;
+            let repository = Arc::new(repository);
+            let recovery_message = match app.state::<audio::DuckingController>().initialize(repository.clone()) {
+                Ok(message) => message,
+                Err(error) => Some(format!("Nie udało się odzyskać głośności muzyki. Zapis pozostaje do ponownej próby: {error}")),
+            };
             settings::apply(
                 &preferences,
                 app.state::<audio::DuckingController>().inner(),
                 app.state::<player::AudioPlayer>().inner(),
             );
-            let repository = Arc::new(repository);
             app.manage(Arc::new(news::NewsService::new(repository.clone())));
             app.manage(Arc::new(content::ContentService::new(repository.clone())));
             app.manage(Arc::new(speech::SpeechService::new(repository.clone())));
             app.manage(repository);
+            background::setup(app.handle(), recovery_message)?;
+            if !std::env::args().any(|arg| arg == "--autostart") { background::show(app.handle()); }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            background::background_connect,
+            background::background_status,
+            background::background_stopped,
             audio::audio_list_sessions,
             audio::ducking::audio_duck,
             audio::ducking::audio_restore,
@@ -52,33 +61,25 @@ pub fn run() {
             speech::speech_generate,
             speech::speech_cancel
         ])
+        .on_window_event(|window, event| {
+            if window.label() == "main" && let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Err(error) = window.hide() { eprintln!("Nie udało się ukryć AraBrief: {error}"); }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event
-                && !restored.load(Ordering::SeqCst)
+                && !app.state::<Arc<background::Lifecycle>>().restored.load(Ordering::SeqCst)
             {
                 api.prevent_exit();
-                if !closing.swap(true, Ordering::SeqCst) {
-                    let controller = app.state::<audio::DuckingController>().inner().clone();
-                    let app = app.clone();
-                    let player = app.state::<player::AudioPlayer>().inner().clone();
-                    let speech = app.state::<Arc<speech::SpeechService>>().inner().clone();
-                    let restored = restored.clone();
-                    std::thread::spawn(move || {
-                        speech.shutdown();
-                        player.shutdown();
-                        if let Err(error) = controller.shutdown() {
-                            eprintln!("Audio restoration at shutdown failed: {error}");
-                        }
-                        restored.store(true, Ordering::SeqCst);
-                        app.exit(0);
-                    });
-                }
+                background::request_exit(app);
             }
         });
 }
 mod audio;
+mod background;
 mod content;
 mod credentials;
 mod news;
