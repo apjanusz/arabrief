@@ -27,6 +27,6 @@ export function Interests({ app }: { app: Workspace }) {
       {app.settings?.topics.length ? <ul className="interest-list">{app.settings.topics.map((value,index)=><li key={value}><span className="topic-number">{String(index+1).padStart(2,"0")}</span><div><strong>{value}</strong><span className="small muted">Google News · Polska</span></div><button className="icon-button" disabled={app.saving || app.busy} aria-label={`Usuń temat: ${value}`} onClick={()=>void remove(value)}><Icon name="close" size={17}/></button></li>)}</ul> : <div className="empty-state spacious"><span className="empty-icon"><Icon name="topics" size={30}/></span><h3>{app.loading?"Wczytywanie tematów…":!app.settings?"Twoja lista czeka na połączenie":"Wszystko zaczyna się od ciekawości"}</h3><p>{!app.settings?"Zapisane zainteresowania zobaczysz po połączeniu z aplikacją desktopową.":"Dodaj pierwszy temat w formularzu. Z niego zaczniemy układać Twój przegląd świata."}</p></div>}
       <p className="library-footnote"><Icon name="check" size={14}/>Twoje tematy są zapisywane lokalnie.</p>
     </section>
-    <p className="interests-disclaimer footnote">Korzystamy z nagłówków i dostępnych opisów RSS. Nie każdy materiał zawiera pełną treść artykułu.</p>
+    <p className="interests-disclaimer footnote">Google News dostarcza artykuły do kolejki. Rozdziały powstają po otwarciu stron wydawców; niedostępne materiały są pomijane.</p>
   </div>;
 }

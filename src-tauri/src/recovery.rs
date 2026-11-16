@@ -13,6 +13,7 @@ pub(crate) fn settings_key(settings: &AppSettings) -> String {
     let mut topics = settings.topics.clone();
     topics.sort();
     serde_json::json!([
+        "article-chapters-v1",
         topics,
         settings.text_model,
         settings.open_ai_voice,

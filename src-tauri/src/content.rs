@@ -1,3 +1,4 @@
+pub(crate) mod chapters;
 mod repair;
 use crate::{
     news::NewsItem,
@@ -59,66 +60,15 @@ pub struct Context {
     sources: Vec<NewsItem>,
     previous: Vec<String>,
     previous_quotes: HashSet<String>,
+    #[cfg(test)]
     settings: AppSettings,
 }
 /// Replaceable native generator; the model never controls repository IDs or URLs.
+#[cfg(test)]
 pub trait ContentGenerator {
     fn generate(&self, context: &Context) -> Result<Draft, String>;
 }
-struct OpenAiGenerator;
-impl ContentGenerator for OpenAiGenerator {
-    fn generate(&self, context: &Context) -> Result<Draft, String> {
-        let mut request_time = crate::performance::Span::new("content.request_build");
-        let request = request_body(context);
-        let body = serde_json::to_vec(&request).map_err(|_| "Błąd przygotowania materiałów")?;
-        request_time.success();
-        drop(request_time);
-        let key = crate::credentials::read_openai_key()?;
-        let bearer = Zeroizing::new(format!("Bearer {}", key.as_str()));
-        let mut auth = HeaderValue::from_str(&bearer).map_err(|_| "Nieprawidłowy klucz OpenAI")?;
-        auth.set_sensitive(true);
-        let client = Client::builder()
-            .timeout(Duration::from_secs(90))
-            .connect_timeout(Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|_| "Nie można utworzyć klienta OpenAI")?;
-        let mut http_time = crate::performance::Span::new("content.responses_http");
-        let response = client
-            .post("https://api.openai.com/v1/responses")
-            .header(AUTHORIZATION, auth)
-            .header(CONTENT_TYPE, "application/json")
-            .body(body)
-            .send()
-            .map_err(|e| {
-                if e.is_timeout() {
-                    "OpenAI: przekroczono czas 90 s. Nie ponowiono płatnego żądania."
-                } else {
-                    "Błąd połączenia z OpenAI"
-                }
-            })?;
-        if !response.status().is_success() {
-            return Err(crate::openai_errors::response_error(response).user_message());
-        }
-        // Never expose API error bodies, headers or credential values to the UI/logs.
-        let mut bytes = Vec::new();
-        response
-            .take(512 * 1024 + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| "Błąd odczytu odpowiedzi OpenAI")?;
-        if bytes.len() > 512 * 1024 {
-            return Err("Odpowiedź OpenAI przekracza limit".into());
-        }
-        http_time.success();
-        drop(http_time);
-        crate::performance::measure("content.response_parse", || {
-            parse_response(
-                &serde_json::from_slice::<Value>(&bytes)
-                    .map_err(|_| "Nieprawidłowa odpowiedź OpenAI")?,
-            )
-        })
-    }
-}
+#[cfg(test)]
 fn request_body(context: &Context) -> Value {
     let ids: Vec<_> = context.sources.iter().map(|s| &s.id).collect();
     let sources: Vec<_> = context.sources.iter().map(source_material).collect();
@@ -139,9 +89,11 @@ fn request_body(context: &Context) -> Value {
         }}}
     })
 }
+#[cfg(test)]
 fn source_material(source: &NewsItem) -> Value {
     json!({"id":source.id,"title":source.title,"url":source.url,"source":source.source,"sourceUrl":source.source_url,"publishedAt":source.published_at,"rawPublicationDate":source.raw_publication_date,"descriptionHtml":source.description_html,"topics":source.topics})
 }
+#[cfg(test)]
 fn parse_response(value: &Value) -> Result<Draft, String> {
     let incomplete = value["status"] == "incomplete";
     if value["status"] != "completed" && !incomplete {
@@ -227,6 +179,7 @@ impl ContentService {
             gate: Mutex::new(()),
         }
     }
+    #[cfg(test)]
     fn context(&self, ids: &[String]) -> Result<Context, String> {
         if !(1..=8).contains(&ids.len()) {
             return Err("Wybierz od 1 do 8 wiadomości z RSS".into());
@@ -253,6 +206,7 @@ impl ContentService {
             Ok(Context { sources, previous, previous_quotes, settings })
         })
     }
+    #[cfg(test)]
     fn generate(
         &self,
         ids: Vec<String>,
@@ -356,10 +310,12 @@ pub async fn content_generate(
 ) -> Result<Broadcast, ContentFailure> {
     crate::background::ensure_running(&app).map_err(ContentFailure::from)?;
     let service = service.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || service.generate(article_ids, &OpenAiGenerator))
-        .await
-        .map_err(|_| ContentFailure::from("Błąd modułu generowania".to_string()))?
-        .map_err(ContentFailure::from)
+    tauri::async_runtime::spawn_blocking(move || {
+        service.generate_chapters(article_ids, &chapters::OpenAiChapters)
+    })
+    .await
+    .map_err(|_| ContentFailure::from("Błąd modułu generowania".to_string()))?
+    .map_err(ContentFailure::from)
 }
 #[derive(serde::Serialize)]
 pub struct ContentFailure {
@@ -387,10 +343,14 @@ pub(crate) fn load_saved(
     repository.with_database(|db| {
         let (created_at,title,model,text,estimated_duration_ms,topics_json,draft_json)=db.query_row("SELECT created_at,title,model,text,estimated_duration_ms,topics_json,draft_json FROM content_broadcasts WHERE id=?1",[id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,u32>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?))).map_err(|e|e.to_string())?;
         let draft:Draft=serde_json::from_str(&draft_json).map_err(|_|"Uszkodzony zapis scenariusza")?;
-        let raw=db.prepare("SELECT snapshot_json FROM content_sources WHERE broadcast_id=?1").map_err(|e|e.to_string())?.query_map([id],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+        let raw=db.prepare("SELECT snapshot_json FROM content_sources c WHERE broadcast_id=?1 ORDER BY COALESCE((SELECT position FROM broadcast_chapters ch WHERE ch.broadcast_id=c.broadcast_id AND ch.article_id=c.article_id),c.article_id)").map_err(|e|e.to_string())?.query_map([id],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
         let sources:Vec<NewsItem>=raw.iter().map(|s|serde_json::from_str(s)).collect::<Result<_,_>>().map_err(|_|"Uszkodzony zapis źródeł")?;
-        let context=Context{sources:sources.clone(),previous:vec![],previous_quotes:HashSet::new(),settings:settings.clone()};
-        repair::validate(&draft,&context)?;
+        let context=Context{sources:sources.clone(),previous:vec![],previous_quotes:HashSet::new(),#[cfg(test)] settings:settings.clone()};
+        let chapters:Vec<(String,String)>=db.prepare("SELECT CAST(article_id AS TEXT),text FROM broadcast_chapters WHERE broadcast_id=?1 AND state!='audio_failed' ORDER BY position").map_err(|e|e.to_string())?.query_map([id],|r|Ok((r.get(0)?,r.get(1)?))).map_err(|e|e.to_string())?.collect::<Result<_,_>>().map_err(|e|e.to_string())?;
+        if chapters.is_empty() { repair::validate(&draft,&context)?; }
+        else if chapters.len()!=draft.segments.len() || sources.len()!=chapters.len() || chapters.iter().zip(&draft.segments).any(|((id,text),segment)|text!=&segment.text || !sources.iter().any(|source|&source.id==id) || segment.evidence.is_empty() || segment.evidence.iter().any(|evidence|&evidence.source_id!=id)) {
+            return Err("Niespójny zapis rozdziałów".into());
+        }
         if text!=draft.segments.iter().map(|s|s.text.as_str()).collect::<Vec<_>>().join("\n\n"){return Err("Niespójny tekst scenariusza".into());}
         Ok(Broadcast{id:id.to_string(),created_at,title,model,text,estimated_duration_ms,topics:serde_json::from_str(&topics_json).map_err(|_|"Uszkodzony zapis tematów")?,draft,sources,language:"pl".into(),target_min_duration_ms:settings.broadcast_min_duration_ms,target_max_duration_ms:settings.broadcast_max_duration_ms})
     })

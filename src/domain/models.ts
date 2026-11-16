@@ -43,9 +43,10 @@ export interface SpeechAsset {
   model: string;
   voice: string;
   transcript: string;
-  verification: "realtime_transcript_normalized_exact";
+  verification: "tts_input_text" | "realtime_transcript_normalized_exact";
   segmentCount: number;
   cached: boolean;
+  chapters?: { articleId: string; position: number; startMs: number; endMs: number }[];
 }
 
 export interface AppSettings {

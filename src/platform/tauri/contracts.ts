@@ -13,6 +13,7 @@ export interface NativeCommands {
   broadcast_restore: { args: undefined; result: { script: BroadcastScript; audio: SpeechAsset | null } | null };
   broadcast_claim: { args: { broadcastId: string }; result: null };
   broadcast_complete: { args: { broadcastId: string }; result: null };
+  /** Rust SpeechAsset includes ordered article IDs and PCM-derived chapter time ranges. */
   speech_generate: { args: { broadcastId: string; voice: string | null; jobId: string }; result: SpeechAsset };
   speech_cancel: { args: { jobId: string }; result: boolean };
   content_generate: { args: { articleIds: readonly string[] }; result: BroadcastScript };

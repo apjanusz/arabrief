@@ -86,7 +86,15 @@ export class ManualBroadcastRunner {
         const job = this.job;
         const audio = await this.measured("prepare.speech", () => this.ports.speech.synthesize(script.id, settings.openAiVoice, job));
         this.job = null; this.check();
-        prepared = { script, audio }; this.pending = null; this.fallback = prepared;
+        const included = audio.chapters?.length ? new Set(audio.chapters.map(chapter => chapter.articleId)) : null;
+        const playable = included ? {
+          ...script, text: script.draft.segments.filter(segment => segment.evidence.some(evidence => included.has(evidence.source_id))).map(segment => segment.text).join("\n\n"),
+          estimatedDurationMs: audio.durationMs,
+          sources: script.sources.filter(source => included.has(source.id)),
+          draft: { ...script.draft, insufficient_material: script.draft.insufficient_material || included.size < script.sources.length, segments: script.draft.segments.filter(segment => segment.evidence.some(evidence => included.has(evidence.source_id))),
+            limitations: included.size < script.sources.length ? [...script.draft.limitations, "Pominięto rozdziały z błędem mowy; ich teksty pozostają zapisane."] : script.draft.limitations },
+        } : script;
+        prepared = { script: playable, audio }; this.pending = null; this.fallback = prepared;
       } catch(cause) {
         if(this.cancelled) console.info("[recovery]",{stage:"preparation",action:"cancelled_preserved_work"});
         this.check();
@@ -132,7 +140,7 @@ export class ManualBroadcastRunner {
       throw new NoUsableMaterial();
     }
     this.ports.onStage("content");
-    const script = await this.measured("prepare.content", () => this.ports.content.generate(news.items.slice(0, 8).map(item => item.id)));
+    const script = await this.measured("prepare.content", () => this.ports.content.generate(news.items.slice(0, 20).map(item => item.id)));
     this.pending = script;
     return script;
   }

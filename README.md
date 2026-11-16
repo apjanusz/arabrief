@@ -290,7 +290,7 @@ Nie zawiera klucza API. Migracje w `src-tauri/migrations` są stosowane w transa
 IMMEDIATE, wersjonowane przez PRAGMA user_version. Nowszy nieobsługiwany schemat,
 błąd migracji lub niepoprawne dane przerywają inicjalizację zamiast resetować ustawienia.
 
-Obsługiwany schemat SQLite ma wersję 9. Migracja 009 dodaje dziennik odzyskiwania
+Obsługiwany schemat SQLite ma wersję 11. Migracja 009 dodaje dziennik odzyskiwania
 audio i opcję startu harmonogramu. Zachowane migracje 006–007 odpowiadają
 za dodatkowe tabele materiałów artykułów; pozostają w historii schematu także
 po cofnięciu kodu korzystającego z tych tabel. Baza w wersji 7 przechodzi migrację 008 bez
@@ -315,7 +315,7 @@ z informacją o numerze bazy i maksymalnej obsługiwanej wersji.
 
 `settings_load()` zwraca kompletny AppSettings; `settings_save({ settings })` zapisuje
 pełny, zwalidowany snapshot. Numer wersji DTO (version: 1) jest niezależny od wersji
-schematu bazy (obecnie 9). Nieznane pola są odrzucane, więc apiKey nie może zostać
+schematu bazy (obecnie 11). Nieznane pola są odrzucane, więc apiKey nie może zostać
 przemycone jako pole ustawień. Tematy i adresy są w osobnych tabelach; zapis całego
 snapshotu jest atomowy. Kontrakty i adapter TS: `src/platform/tauri/settings.ts`.
 
@@ -355,153 +355,120 @@ Dokumentacja:
 https://docs.rs/rusqlite/0.42.0/rusqlite/struct.Connection.html
 https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credwritew
 
-## Google News RSS / NewsProvider
+## Kolejka artykułów i rozdziały audycji (MVP)
 
-Porty: `src-tauri/src/news.rs::NewsProvider` i `src/modules/news/NewsProvider.ts`.
-Pierwszy adapter to GoogleNews; normalizuje metadane RSS do NewsItem. Warstwa HTTP
-jest oddzielona od repozytorium historii i widoku. Nowy dostawca może implementować
-fetch_topic, zachowując provider i pochodzenie danych; serwis można rozszerzyć o jego
-wybór i osobny klucz limitów odpytywania. Nie ma integracji z OpenAI ani pobierania
-pełnych stron wydawców.
+Google News jest dostawcą metadanych do trwałej kolejki w SQLite. Pula mieści
+standardowo 20 pozycji, a audycja wybiera trzy najstarsze dostępne artykuły
+opublikowane w ostatnich siedmiu dniach (7 × 24 godziny).
+Kolejne przygotowania korzystają z tej samej kolejki. Przy co najmniej trzech
+pozycjach nie wysyłamy nowych zapytań RSS. Gdy pozostają jedna lub dwie pozycje,
+uzupełniamy pulę do 20, zachowując pozostałe. Remisy dat rozstrzyga stabilny
+lokalny identyfikator. Dla Google News
+brak lub błędna data wyklucza przyjęcie artykułu i wybór do nowej audycji.
 
-Adres zapytania jest budowany przez Url.query_pairs_mut (bez sklejania danych użytkownika):
-`https://news.google.com/rss/search?q=…&hl=pl&gl=PL&ceid=PL:pl`.
-To preferencja polskiej edycji, nie gwarancja języka każdego wpisu. RSS nie jest
-wersjonowanym kontraktem API Google. Pobierane są wyłącznie kanały wyszukiwania RSS;
-nie dekodujemy linków pośrednich Google, nie obchodzimy paywalli ani nie wysyłamy
-zapytań do adresów artykułów. TLS na Windows korzysta z systemowej weryfikacji certyfikatów.
+Zachowujemy wybrane tematy użytkownika. `news_topic_articles` wiąże artykuły
+z tematami, a generowanie ponownie sprawdza przynależność do obecnych ustawień.
+Zmiana tematów lub głosu nie usuwa historii. Rozdział tekstowy można ponownie
+wykorzystać po zmianie głosu; gotowe nagranie nadal musi pasować do głosu.
 
-Komendy Tauri:
-- `news_fetch({ topics: string[] })` → `{ items, topics, fetchedTopics }`.
-  topics wyniku zawiera topic, nextFetchAt (Unix seconds) i error. fetchedTopics
-  oznacza tematy, dla których podjęto próbę HTTP w tym wywołaniu. Przy limicie
-  lub błędzie zwracane są dostępne wcześniejsze, niewykorzystane wpisy z SQLite.
-- `news_mark_used({ articleIds, broadcastId })` → null. Wywołuj dopiero dla artykułów
-  faktycznie wykorzystanych w audycji. Zapis transakcyjny i idempotentny dla pary
-  artykuł/audycja; nieznany identyfikator odrzuca cały zapis. Nie jest wywoływany
-  przez podgląd diagnostyczny ani test dwutonowego WAV.
+Migracja `010_article_queue.sql` dodaje:
 
-NewsItem zachowuje tytuł, oryginalny URL, nazwę i URL źródła (jeżeli podane), GUID,
-URL kanału, datę pobrania oraz oryginalną datę publikacji. Poprawna data publikacji
-jest dodatkowo normalizowana do UTC; brak lub błędna data pozostaje null i trafia
-na koniec sortowania. Brak źródła i opisu pozostaje null. descriptionHtml to surowy
-opis RSS, nigdy pełna treść ani streszczenie przygotowane przez model. Google często
-podaje tam tylko nagłówek i link. Diagnostyka renderuje go jako tekst, bez HTML.
-Nie wolno traktować takich danych jako wiedzy o nieudostępnionej treści artykułu.
+| Tabela | Zadanie |
+| --- | --- |
+| `article_queue` | Chronologia, liczba błędów, termin ponowienia i pominięcie wadliwych pozycji |
+| `news_pool_state` | Najnowsza data publikacji przyjęta dla każdego tematu |
+| `article_chapters` | Poprawny tekst rozdziału, konfiguracja modelu i ślad otwarcia strony |
+| `broadcast_chapters` | Kolejność artykułów, teksty i granice czasowe kompletnych rozdziałów audio |
 
-Migracja `003_news_history.sql` rozbudowuje tę samą bazę settings.sqlite3 o artykuły,
-powiązania z tematami, aliasy URL/GUID z metadanymi, historię użycia i stan odpytywania.
-Duplikaty są rozpoznawane po kanonicznym URL (bez fragmentu i znanych parametrów
-śledzących), GUID dostawcy oraz dokładnym znormalizowanym tytule + źródle + dniu UTC.
-Nie jest to semantyczna deduplikacja: różne relacje o jednym wydarzeniu mogą pozostać
-osobnymi wynikami. Każdy alias zachowuje metadane RSS; główny wpis zachowuje pierwszy
-snapshot. Zapisane użycie wyklucza artykuł ze wszystkich tematów również po restarcie.
-Z każdej listy tematu zwracanych jest do 100 ostatnio widzianych niewykorzystanych
-artykułów; wspólna lista jest sortowana malejąco według daty publikacji.
+Przy uzupełnianiu puli wysyłamy zapytanie Google News z datą `after:` cofniętą
+o 24 godziny względem zapisanego maksimum, z granicą nie starszą niż siedem dni.
+Dotyczy to również pierwszego pobrania i starego watermarku po przerwie w działaniu.
+Google filtruje po dniu, dlatego dodatkowo sprawdzamy dokładny czas publikacji
+w Rust przed zapisem. Starsze zapisane pozycje Google News są pomijane przy wyborze
+z kolejki; historia pozostaje w bazie. Identyfikatory, GUID-y i
+znormalizowane URL-e zapobiegają powtórkom. Usuwamy fragment URL, typowe parametry
+śledzące i porządkujemy parametry. Tytuł, wydawca, podobieństwo semantyczne i
+wspólne cytaty nie są kryteriami odrzucenia. Wcześniejsza kolumna `fingerprint`
+pozostaje dla zgodności schematu, lecz jej wartości są czyszczone i nieużywane.
 
-Limity i błędy:
-- 1–30 tematów, do 160 bajtów każdy; duplikaty tematów bez rozróżniania wielkości liter.
-- Do czterech równoległych żądań, jedna partia odświeżania naraz w procesie.
-- Timeout całego żądania 12 s, połączenia 5 s; maksymalnie 2 MiB RSS i 100 wpisów z kanału.
-- Minimum 5 minut na temat oraz minuta pomiędzy partiami nowych zapytań; limity
-  są rezerwowane transakcyjnie w SQLite przed HTTP, także dla nieudanych prób.
-- HTTP 429/503 ustawia cooldown dostawcy według Retry-After (domyślnie 5 min,
-  minimum 1 min, maksimum doba). Po takim błędzie nie startują następne grupy żądań.
-- Błędy tematów są zapisywane i pokazywane osobno, więc jeden niedostępny kanał
-  nie usuwa poprawnych wyników z pozostałych. Nie ma automatycznych retry ani
-  nieograniczonych przekierowań; przekierowanie HTTP jest raportowane jako błąd.
+Google News RSS nie jest pełnym, stronicowanym archiwum. Czytamy najwyżej 100
+pozycji na temat z odpowiedzi do 2 MiB. Opóźnione publikacje spoza nakładającego
+się zakresu lub nieobecne w kanale mogą pozostać niewykryte. Pobrania respektują
+`Retry-After`; poza cooldownem jest krótka blokada równoległych pobrań, a nie
+odpytywanie co pięć minut. Błąd jednego kanału nie usuwa wyników pozostałych.
 
-Widok „Wiadomości — diagnostyka RSS” przyjmuje po jednym temacie na linię, zapisuje
-listę do preferencji i pozwala ręcznie pobrać wiadomości. Pokazuje pochodzenie,
-metadane, opis RSS, błędy, ograniczenia odpytywania i datę pobrania danych z cache.
+## Odczytywanie artykułu i generowanie rozdziału
 
-Testy obejmują parsowanie, brakujące pola, odrzucanie niebezpiecznych URL, sortowanie,
-deduplikację między tematami, aliasy, wykluczanie użytych artykułów, atomowość historii,
-limity i trwałość po ponownym otwarciu SQLite. Test rzeczywistego kanału jest opcjonalny:
-`cargo test --manifest-path src-tauri/Cargo.toml --lib news::tests::live_google_news -- --ignored --nocapture`.
-Nie zapisuje danych w produkcyjnej bazie i nie otwiera artykułów.
+Aktualny przepływ to **jedno niezależne żądanie Responses na artykuł**, z maksymalnie
+trzema pracownikami. Nie ma dodatkowych zapytań AI do selekcji, deduplikacji,
+łączenia tekstów ani końcowego podsumowania. Dotychczasowy prompt i walidator
+scenariuszy z RSS pozostają wyłącznie dla testów zgodności i odczytu dawnych danych;
+nowe rozdziały ich nie używają.
 
-Dokumentacja bibliotek:
-https://docs.rs/rss/2.1.2/rss/struct.Channel.html
-https://docs.rs/reqwest/0.13.5/reqwest/blocking/struct.ClientBuilder.html
+`content/chapters.rs` wysyła metadane, URL i wymagany zakres długości. Narzędzie
+OpenAI `web_search` ma `external_web_access=true` i `tool_choice=required`.
+Model ma znaleźć i otworzyć konkretny artykuł wydawcy, również gdy wejściowy URL
+jest opakowaniem Google News. Aplikacja wymaga jednocześnie:
 
-## ContentGenerator / OpenAI Responses API
+- ukończonej odpowiedzi i poprawnego JSON-u;
+- `article_read=true`, gotowego tekstu i krótkich fragmentów dowodowych;
+- ukończonego `web_search_call` z akcją `open_page` dla zwróconego URL-a artykułu;
+- zgodności bezpośredniego URL-a albo domeny wydawcy z metadanych Google News.
 
-Moduł Rust: `src-tauri/src/content.rs`. Prompt lektora: `src-tauri/src/arabrief_prompt.txt`.
-Port TS: `src/modules/content/ContentGenerator.ts`, adapter Tauri:
-`src/platform/tauri/content.ts`. Nie dodano SDK ani nowych zależności. HTTP korzysta
-z istniejącego reqwest, a klucz pobierany jest przez natywną funkcję credentials
-(nie komendę IPC). Authorization ma oznaczenie sensitive; klucz i bufor Bearer są
-Zeroizing. Klucz nie jest częścią promptu, JSON requestu, SQLite, logów ani odpowiedzi UI.
+Samo `search`, snippet, adres Google News, strona główna wydawcy lub deklaracja
+odczytu bez śladu narzędzia nie wystarcza. Model musi zgłosić niedostępność pełnej
+treści, np. przy paywallu. Nie ma zastępczego tworzenia tekstu z samego nagłówka.
+Strony traktowane są jako niezaufane dane, nie instrukcje. Źródła w interfejsie
+są klikalnymi linkami do przeczytanych artykułów.
 
-`content_generate({ articleIds })` przyjmuje od 1 do 8 identyfikatorów NewsProvider.
-Powtórzone ID są scalane; brakujące, zarezerwowane i uszkodzone wpisy są pomijane.
-Nie przyjmuje dowolnych tekstów, URL-i ani klucza od webview. Rust pobiera snapshoty
-RSS z bazy i sprawdza, czy nie były wcześniej użyte w audycji ani zapisanym scenariuszu.
-Opis każdego źródła wysyłany do modelu ma limit 4000 znaków; pełne metadane nadal są
-w historii RSS. Model tekstowy jest zapisany w ustawieniu textModel (domyślnie
-`gpt-5-mini`), konfigurowalny w polu nad przyciskiem. Musi obsługiwać Responses API
-oraz Structured Outputs. Ustawienie openAiVoice jest niezależne i nadal nie jest używane.
+Ślad narzędzia potwierdza otwarcie strony przez usługę OpenAI. Nie udostępnia
+aplikacji całego pobranego dokumentu ani niezależnego dowodu prawdziwości każdej
+parafrazy. Rozpoznanie paywalla i zgodności znalezionego artykułu nadal częściowo
+zależy od modelu. Wymagany jest model obsługujący hosted web search i otwieranie
+stron; nie zmieniamy samoczynnie modelu zapisanego w ustawieniach.
 
-Zapytanie: POST https://api.openai.com/v1/responses, instructions + input,
-text.format=json_schema, strict=true, store=false, max_output_tokens=6000.
-Nie ma narzędzi, wyszukiwania internetu, previous_response_id ani dowolnego endpointu.
-Timeout całości 90 s, połączenia 10 s, limit odpowiedzi 512 KiB. Bez automatycznych
-ponowień płatnych żądań. HTTP 401/403, 429, błędy modelu, odmowa i nieczytelna koperta
-JSON kończą próbę; gotowa niewykorzystana audycja pozostaje dostępna jako fallback.
-Kompletny JSON odpowiedzi incomplete może dostarczyć poprawne segmenty. Wadliwy segment
-nie niszczy poprawnych sąsiadów. Surowe odpowiedzi błędów API nie trafiają do UI/logów.
-Jedno generowanie naraz w procesie.
+Każdy poprawny rozdział zapisujemy od razu, zanim skończą się pozostałe żądania.
+Błąd późniejszego zapisu audycji lub TTS nie usuwa cache tekstu. Po błędzie
+artykułu próbujemy kolejnego, najwyżej dziewięciu kandydatów w jednym przygotowaniu.
+Jeśli powstaną jeden lub dwa rozdziały, publikujemy krótszą audycję. Trzy nieudane
+przygotowania konkretnego artykułu wyłączają go z aktywnej kolejki; pomiędzy próbami
+jest 60 sekund przerwy. Globalne błędy klucza/modelu/API nie oznaczają artykułów
+jako trwale wadliwych. Żądanie rozdziału ma timeout 90 s; ponawiamy najwyżej raz
+HTTP 429/5xx, tylko gdy oczekiwanie `Retry-After` nie przekracza dwóch sekund.
+Nie powtarzamy automatycznie niejednoznacznego timeoutu płatnego żądania.
 
-Scenariusz domyślnie celuje w 280–420 słów (2–3 minuty przy 140 słowach/min).
-Zakres pochodzi z broadcastMinDurationMs/broadcastMaxDurationMs. Przy skąpych danych
-powinien być krótszy, oznaczony insufficient_material i opisany w limitations.
-Nie wyciągamy treści artykułu z samego nagłówka i nie uzupełniamy długości faktami
-z wiedzy modelu. estimatedDurationMs to oszacowanie z liczby słów, nie pomiar TTS.
-Przy przekroczeniu 120% górnego celu usuwane są całe nadmiarowe wiadomości.
+Po tekście następuje bezpośrednio istniejący TTS Realtime, z wybranym głosem.
+Każdy rozdział jest dzielony na fragmenty zgodnie z dotychczasowym limitem tekstu
+800 znaków. Poprawne PCM pozostają w istniejącym `speech_segments`. Błąd jednego
+rozdziału nie przerywa pozostałych. Publikowane są wyłącznie kompletne rozdziały,
+w kolejności artykułów; `SpeechAsset.chapters` zawiera `articleId`, `position`,
+`startMs`, `endMs`. Wszystkie opublikowane fragmenty muszą przejść walidację
+transkrypcji. Nie sklejamy niekompletnych zdań z uszkodzonego rozdziału.
 
-Ustrukturyzowany wynik BroadcastScript zawiera id, createdAt (UTC), model, title,
-text, language=pl, topics, estimatedDurationMs, docelowy zakres czasu, draft i sources.
-draft ma title, segments (topic, text, evidence: source_id + quote), limitations
-oraz insufficient_material. Wewnętrzne pola draft/evidence zachowują nazwy schema
-OpenAI w snake_case; DTO aplikacji i snapshoty NewsItem używają camelCase.
-URL-e i metadane sources pochodzą wyłącznie z bazy, nie z odpowiedzi modelu.
+Błąd TTS zachowuje tekst i dostępne PCM. Brak choćby jednego kompletnego rozdziału
+zwalnia rezerwację nieudanej audycji, aby nie blokować kolejki. Teksty i fragmenty
+pozostają do wznowienia. Mowa rozdziału ma limit 300 sekund na próbę i najwyżej
+jedno ponowienie przy błędzie połączenia/timeout; cache zapobiega powtarzaniu
+poprawnie zapisanych fragmentów. Historia `news_usage` obejmuje wyłącznie artykuły
+z odtworzonego nagrania. Receipt `attempted` nadal zabezpiecza przed powtórką
+częściowo usłyszanej audycji po awarii.
 
-Walidacja sprawdza identyfikatory z przekazanego zbioru i dosłowne cytaty obecne
-w dostarczonym tytule/opisie. Usuwa pojedyncze wiadomości z nieznanym źródłem,
-zmyślonym cytatem lub powtórzoną narracją. Sam współdzielony cytat nie jest powodem
-odrzucenia; uwzględniamy też poprzedni tekst i obecność nowych dowodów. Wiadomości
-porządkowane są lokalnie od najnowszej publikacji; nie ma ponownego wywołania modelu.
-Jedna poprawna wiadomość wystarcza do krótszej audycji. Prompt nakazuje przypisać każdą istotną informację do
-potwierdzającego cytatu i traktować RSS jako niezaufane dane, nigdy polecenia.
-Istnienie cytatu nie dowodzi automatycznie, że każda parafraza modelu z niego wynika:
-to walidacja pochodzenia, nie niezależny weryfikator prawdziwości lub semantyki.
-W podglądzie można sprawdzić cytaty dla każdego segmentu przed przyszłym odtworzeniem.
+Harmonogram jest zachowany: przygotowanie zaczyna się na starcie, gotowe audio
+czeka na pełny interwał, a następna audycja zaczyna się przygotowywać po zakończeniu
+natywnego odtwarzania i przywróceniu muzyki. Jedna bramka przygotowania scenariusza,
+jedna synteza i istniejąca blokada odtwarzacza zapobiegają dublowaniu pracy.
+Ducking i przywracanie głośności nie zostały zmienione.
 
-Migracja `004_content_generation.sql` dodaje text_model oraz content_broadcasts,
-content_sources i content_evidence. Tekst, data, tematy, model, ograniczenia i snapshoty
-wykorzystanych źródeł są zapisywane w jednej transakcji. Nie zapisujemy chain-of-thought.
-Ponowne użycie tych samych artykułów jest blokowane przez historię całej
-bazy; pięć ostatnich scenariuszy jest dodatkowo przekazywanych modelowi jako kontekst
-przeciw powtarzaniu informacji innymi słowami. To ogranicza, ale nie gwarantuje wykrycia
-semantycznych powtórzeń tej samej informacji w innych źródłach, zwłaszcza starszych.
+Testy deterministyczne obejmują pulę 20, dwie kolejne audycje bez RSS, uzupełnienie
+z zachowaniem dwóch pozycji, wyczerpanie, restart, tolerancyjne duplikaty, niezależne
+błędy modelu, częściowe TTS, błędną transkrypcję, cache po błędzie SQLite, chronologię,
+granice audio, anulowanie i przygotowanie następnego cyklu. Polecenia:
+`cargo test --manifest-path src-tauri/Cargo.toml --lib`, `npm run test:manual`,
+`npm run test:scheduler`, `npm run build` oraz standardowe fmt/check/clippy.
+Testy używają atrap dostawców; nie wykonują płatnych wywołań OpenAI.
 
-Zapisany scenariusz testowy nie jest wyemitowaną audycją: nie dodaje wpisu news_usage,
-nie uruchamia odtwarzacza, duckingu ani TTS. Jest jednak konserwatywnie wykluczany
-z materiałów następnych scenariuszy. news_fetch pomija źródła już związane z zapisanym
-scenariuszem; po wyczerpaniu dostępnych materiałów należy pobrać nowe wiadomości.
-
-Test ręczny: zapisz klucz w Windows Credential Manager, pobierz RSS dla kilku tematów,
-sprawdź materiały i model, kliknij „Wygeneruj testową audycję”. Przycisk wysyła do
-OpenAI materiały RSS i kontekst poprzednich scenariuszy oraz może naliczyć koszt API.
-UI wyświetla tekst, źródła, cytaty, ograniczenia i orientacyjny czas. TTS i harmonogram
-opisano poniżej. Testy automatyczne używają fikcyjnego generatora i
-odpowiedzi API, bez rzeczywistego klucza, sieci OpenAI lub kosztów. Sprawdzają kontrakt
-Responses, błędy/refusal/incomplete, źródła, cytaty, powtórzenia i atomowość zapisu.
-
-Referencje API użyte podczas implementacji:
-https://developers.openai.com/api/reference/resources/responses/methods/create
-https://developers.openai.com/api/docs/models/gpt-5-mini
+Dokumentacja API: [web search i akcje otwarcia strony](https://developers.openai.com/api/docs/guides/tools-web-search),
+[Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
 
 ## SpeechProvider / Realtime → lokalny WAV
 
@@ -557,7 +524,7 @@ Nagranie należy odsłuchać przed przyszłą emisją. UI jasno oznacza głos ja
 
 WAV to jeden nagłówek RIFF/WAVE i połączone PCM16 little-endian, mono, 24 kHz.
 Długości RIFF/data i durationMs wynikają z faktycznie otrzymanej liczby bajtów,
-a nie z czasu oczekiwania. Limit całego audio to 15 minut i 60 segmentów; limit
+a nie z czasu oczekiwania. Limit całego audio to 15 minut, a podział pojedynczego rozdziału ma limit 60 fragmentów; limit
 pojedynczego segmentu 8 MiB. Plik powstaje dopiero po pozytywnej weryfikacji całości.
 W katalogu app_data_dir()/audio zapisujemy plik .part, synchronizujemy go i publikujemy
 jako speech-{SHA256}.wav przez dowiązanie twarde w tym samym katalogu (bez nadpisywania
@@ -736,31 +703,10 @@ TTS nie jest generowany ponownie. Anulowanie nie uruchamia fallbacku i nie usuwa
 poprawnie przygotowanej pracy. Po błędzie historii zakończony odsłuch pozostaje
 zabezpieczony przez receipt; nie zgłaszamy błędu całego harmonogramu.
 
-Niepełne audio nie jest odtwarzane. Obecne części TTS mogą dzielić jedną wiadomość,
-więc wycięcie losowej części mogłoby zmienić jej sens. Zachowujemy poprawne PCM,
-wznawiamy brakujące części przy kolejnej próbie, a jeśli istnieje pełny fallback,
-korzystamy z niego. Wszystkie części i cała transkrypcja nadal muszą przejść walidację.
-Po awarii procesu nie znamy faktycznej liczby usłyszanych próbek: konserwatywnie nie
-powtarzamy także audycji `attempted`, choć mogła nie zacząć grać. Rzeczywisty backend
-odtwarzania i odzyskiwanie głośności nie zostały zmienione.
+Niekompletne rozdziały nie są odtwarzane; kompletne rozdziały są publikowane
+niezależnie. Aktualny mechanizm opisuje sekcja MVP powyżej. Testy dawnych scenariuszy
+RSS nadal sprawdzają zgodność danych historycznych; heurystyki podobieństwa nie
+uczestniczą w generowaniu nowych audycji. Diagnostyka `[pipeline]` podaje etap,
+identyfikator artykułu i wynik. Logi nie zawierają sekretów ani pełnych odpowiedzi API.
 
-Brak nowych lub bezpiecznych wiadomości jest stanem `waiting`, `ready=false`,
-z czytelnym komunikatem. Termin bez nagrania pomijamy bez duckingu; kolejny cykl
-działa normalnie. Błąd autoryzacji, niedostępność API, brak możliwości spójnego zapisu
-SQLite lub błąd odtwarzania bez bezpiecznej alternatywy nadal są raportowane.
-`content_generate` odrzuca Promise obiektem `{ code, message }`, gdzie
-`no_usable_material` oznacza zwykły brak materiałów, a `content_failure` awarię usługi.
-
-Diagnostyka `[recovery]` zawiera `stage`, numer segmentu/źródła, `action` i `reason`,
-np. `unsupported_evidence`, `repeated_narration`, `reordered`, `reused_verified_pcm`,
-`reindexed_verified_wav`. `[perf]` zachowuje pomiary etapów. Logi nie zawierają klucza
-ani pełnych odpowiedzi API. Naprawa jednego segmentu odbywa się lokalnie; nie dodajemy
-wywołań AI w celu naprawy kolejności lub metadanych.
-
-Testy Rust oraz `test:manual`/`test:scheduler` obejmują wadliwe źródła i segmenty JSON,
-powtórki, aktualizacje liczb, kolejność, krótszy scenariusz, wyścig o źródło, brak
-materiałów, wznowienie TTS, odzyskiwanie WAV po błędzie SQLite, cache po awarii,
-anulowanie, wyłączność odsłuchu i kolejny cykl po niepowodzeniu. Testy używają lokalnych
-fixture i atrap dostawców, bez płatnych żądań. Walidacja cytatów i heurystyki podobieństwa
-nie zastępują niezależnego sprawdzania faktów; ta gałąź nadal dostarcza materiały RSS,
-nie pełne artykuły wydawców.
+Aktualizacja TTS: adapter korzysta z /v1/audio/speech, modelu gpt-4o-mini-tts i głosów marin/cedar. Migracja 011 zastępuje inne zapisane głosy przez marin. Każde żądanie zawiera instrukcję polskiej wymowy. Podział tekstu, cache PCM, składanie i anulowanie pozostają zachowane. Metadana tts_input_text oznacza tekst wejściowy syntezy, a nie transkrypcję otrzymanego audio (Speech API jej nie zwraca). Starsze sekcje Realtime opisują poprzedni adapter. Model według dokumentacji OpenAI będzie wyłączony 6 stycznia 2027: https://developers.openai.com/api/docs/guides/text-to-speech .

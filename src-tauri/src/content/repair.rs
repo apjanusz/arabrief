@@ -66,6 +66,7 @@ fn problem(segment: &Segment, context: &Context) -> Option<&'static str> {
     }
     None
 }
+#[cfg(test)]
 fn publication(segment: &Segment, context: &Context) -> i64 {
     segment
         .evidence
@@ -77,6 +78,7 @@ fn publication(segment: &Segment, context: &Context) -> i64 {
         .max()
         .unwrap_or(i64::MIN)
 }
+#[cfg(test)]
 pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String> {
     let original = draft.segments.len();
     let mut kept: Vec<Segment> = Vec::new();

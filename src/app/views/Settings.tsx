@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode, ComponentProps } from "react";
 import type { AppSettings } from "../../domain/models";
 import type { CredentialStore, KeyValidation } from "../../modules/settings/CredentialStore";
@@ -7,12 +7,45 @@ import { errorText } from "../useAraBrief";
 import { Icon, BrandMark } from "../components/Icon";
 import { notifications } from "../notifications/notifications";
 
-const voices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
+const voices = ["marin", "cedar"];
+// Responses web_search and Standard USD/1M input/output checked 2026-11-16.
+// https://developers.openai.com/api/docs/pricing — 0.25/2, 0.75/4.5, 2.5/15.
+const models = [
+  { id: "gpt-5-mini", name: "GPT-5 mini", cost: "$" },
+  { id: "gpt-5.4-mini", name: "GPT-5.4 mini", cost: "$$" },
+  { id: "gpt-5.4", name: "GPT-5.4", cost: "$$$" },
+];
+function ModelSelect({ value, change }: { value:string; change:(value:string)=>void }) {
+  const id=useId(); const root=useRef<HTMLDivElement>(null); const trigger=useRef<HTMLButtonElement>(null);
+  const [open,setOpen]=useState(false);
+  const selected=models.find(model=>model.id===value);
+  const [custom,setCustom]=useState(!selected);
+  const [customValue,setCustomValue]=useState(selected?"":value);
+  useEffect(()=>{setCustom(!models.some(model=>model.id===value));},[value]);
+  function close() {setOpen(false);trigger.current?.focus();}
+  function focusOption(index:number) { const options=root.current?.querySelectorAll<HTMLButtonElement>('[role="option"]');options?.[(index+options.length)%options.length]?.focus(); }
+  const options=[...models,{id:"other",name:"Inny",cost:""}];
+  return <div ref={root} className="field model-field" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setOpen(false);}} onKeyDown={event=>{if(event.key==="Escape"&&open){event.preventDefault();close();}}}>
+    <label id={`${id}-label`} htmlFor={`${id}-trigger`}>Model tekstowy</label>
+    <div className="model-select">
+      <button id={`${id}-trigger`} ref={trigger} type="button" className="model-trigger" aria-haspopup="listbox" aria-expanded={open} aria-controls={`${id}-options`} onClick={()=>setOpen(!open)} onKeyDown={event=>{if(event.key==="ArrowDown"||event.key==="ArrowUp"){event.preventDefault();setOpen(true);requestAnimationFrame(()=>focusOption(event.key==="ArrowUp"?options.length-1:0));}}}>
+        <span>{custom?"Inny":selected?.name??value}</span><span className="model-cost">{custom?"":selected?.cost}</span><Icon name="arrow" size={13}/>
+      </button>
+      {open&&<div id={`${id}-options`} className="model-options" role="listbox" aria-labelledby={`${id}-label`}>{options.map((model,index)=><button key={model.id} type="button" role="option" aria-selected={model.id==="other"?custom:!custom&&model.id===value} className={`model-option ${(model.id==="other"?custom:!custom&&model.id===value)?"is-selected":""}`} onKeyDown={event=>{if(["ArrowDown","ArrowUp","Home","End"].includes(event.key)){event.preventDefault();focusOption(event.key==="Home"?0:event.key==="End"?options.length-1:index+(event.key==="ArrowDown"?1:-1));}}} onClick={()=>{
+        if(model.id==="other"){setCustom(true);change(customValue);}else{if(custom)setCustomValue(value);setCustom(false);change(model.id);}close();
+      }}><span>{model.name}</span><span className="model-cost">{model.cost}</span></button>)}</div>}
+    </div>
+    {custom&&<><label htmlFor={`${id}-custom`}>Identyfikator modelu</label><input id={`${id}-custom`} required maxLength={100} pattern="[A-Za-z0-9_.:\-]+" value={value} onChange={event=>{setCustomValue(event.target.value);change(event.target.value);}} placeholder="np. gpt-6-sol" autoComplete="off" spellCheck={false}/><small>Wpisz identyfikator modelu obsługującego web_search w Responses API.</small></>}
+    <small>$ tani · $$ średni · $$$ drogi. Koszt tokenów; wyszukiwanie jest płatne dodatkowo.</small>
+  </div>;
+}
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
 function NumberField({ label, value, min, max, step=1, unit, change }: { label:string; value:number; min:number; max:number; step?:number; unit:string; change:(value:number)=>void }) {
-  return <Field label={label}><span className="unit-input"><input required type="number" min={min} max={max} step={step} value={Number.isFinite(value)?value:""} onChange={e=>change(e.target.value===""?NaN:Number(e.target.value))}/><span>{unit}</span></span></Field>;
+  const id=useId();
+  const display=value.toLocaleString("pl-PL",{maximumFractionDigits:unit==="s"?1:2});
+  return <div className="field volume-field"><div className="range-heading"><label htmlFor={id}>{label}</label><output htmlFor={id}>{display}<small>{unit}</small></output></div><input id={id} aria-valuetext={`${display} ${unit}`} type="range" min={min} max={max} step={step} value={value} onChange={event=>change(Number(event.target.value))}/></div>;
 }
 function VolumeField({ label, value, hint, change }: { label:string; value:number; hint:string; change:(value:number)=>void }) {
   const id = useId();
@@ -51,12 +84,12 @@ export function Settings({ app, credentials }: { app: Workspace; credentials: Cr
       </SettingsSection>
 
       <SettingsSection id="broadcast-settings" icon="clock" title="Rytm audycji" description="Krótka chwila z wiadomościami, dopasowana do Ciebie." disabled={locked}>
-        <div className="form-grid"><NumberField label="Minimalna długość" min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMinDurationMs/60000} change={v=>update("broadcastMinDurationMs",v*60000)}/><NumberField label="Maksymalna długość" min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMaxDurationMs/60000} change={v=>update("broadcastMaxDurationMs",v*60000)}/></div><p className="footnote">Orientacyjny czas. Jeśli dostępne są tylko nagłówki, audycja może być krótsza.</p>
+        <div className="form-grid"><NumberField label="Minimalna długość" min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMinDurationMs/60000} change={v=>update("broadcastMinDurationMs",v*60000)}/><NumberField label="Maksymalna długość" min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMaxDurationMs/60000} change={v=>update("broadcastMaxDurationMs",v*60000)}/></div><p className="footnote">Orientacyjny czas. Audycja może być krótsza, jeśli część artykułów lub nagrań jest niedostępna.</p>
         <div className="schedule-settings"><NumberField label="Interwał audycji" min={1} max={1440} unit="min" value={draft.intervalMs/60000} change={v=>update("intervalMs",v*60000)}/><div><span className="badge">Start w Twoim studiu</span><p className="small muted">Po kliknięciu Start pierwsza audycja zabrzmi po pełnym interwale. Każdy następny interwał zaczyna się po zakończonym odsłuchu.</p></div></div>
       </SettingsSection>
 
       <SettingsSection id="voice-settings" icon="radio" title="Głos Twojego studia" description="Lektor AI czyta przygotowany scenariusz po polsku." disabled={locked}>
-        <div className="form-grid"><Field label="Głos OpenAI"><select value={draft.openAiVoice} onChange={e=>update("openAiVoice",e.target.value)}>{!voices.includes(draft.openAiVoice) && <option value={draft.openAiVoice}>{draft.openAiVoice} (zapisany)</option>}{voices.map(voice=><option key={voice}>{voice}</option>)}</select></Field><Field label="Model tekstowy" hint="Responses API i Structured Outputs."><input required maxLength={100} value={draft.textModel} onChange={e=>update("textModel",e.target.value)} spellCheck={false}/></Field></div><p className="footnote">Przygotowanie nowych scenariuszy i nagrań korzysta z płatnego API OpenAI.</p>
+        <div className="form-grid"><Field label="Głos OpenAI"><select value={draft.openAiVoice} onChange={e=>update("openAiVoice",e.target.value)}>{voices.map(voice=><option key={voice}>{voice}</option>)}</select></Field><ModelSelect value={draft.textModel} change={value=>update("textModel",value)}/></div><p className="footnote">Przygotowanie nowych scenariuszy i nagrań korzysta z płatnego API OpenAI.</p>
       </SettingsSection>
       <SettingsSection id="background-settings" icon="settings" title="Działanie w tle" description="Zamknięcie okna ukrywa AraBrief w zasobniku Windows. Harmonogram i odtwarzanie działają dalej." disabled={locked}>
         <Field label="Uruchamianie z Windowsem" hint="Aplikacja uruchomi się w zasobniku po zalogowaniu. Domyślnie wyłączone."><span className="checkbox-option"><input type="checkbox" checked={draft.autoStart} onChange={e=>update("autoStart",e.target.checked)}/> Uruchamiaj AraBrief z Windowsem</span></Field>

@@ -219,6 +219,24 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
 .settings-section-intro h2 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; margin: 12px 0 8px; }
 .settings-section-intro>p { color: var(--text-secondary); font-size: 12px; line-height: 1.8; max-width: 220px; }
 .settings-section-body { min-width: 0; padding: 22px; background: var(--surface-panel); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.settings-section-body>.field+.field { margin-top: 24px; }
+.settings-section-body>.footnote { margin-top: 18px; line-height: 1.8; }
+.settings-section-body .form-grid { align-items: start; gap: 28px 24px; }
+.settings-section-body .field>label, .settings-section-body .field>span:first-child { line-height: 1.5; }
+.model-select { position: relative; }
+.model-trigger { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 13px; background: var(--surface-input); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); cursor: pointer; list-style: none; }
+.model-trigger { width: 100%; color: inherit; font: inherit; text-align: left; }
+.model-trigger>svg { transform: rotate(90deg); color: var(--text-muted); flex-shrink: 0; }
+.model-trigger[aria-expanded="true"] { border-color: var(--focus); }
+.model-cost { margin-left: auto; color: var(--brand-yellow); font-size: 12px; font-weight: 600; letter-spacing: 1px; white-space: nowrap; }
+.model-options { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; right: 0; padding: 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-raised); box-shadow: 0 10px 24px #0005; }
+.model-option { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px; border-radius: 5px; cursor: pointer; }
+.model-option:hover, .model-option:focus-visible { background: var(--surface-panel); outline: 1px solid var(--focus); }
+.model-option.is-selected { background: var(--surface-panel); }
+.model-option { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.model-option.is-selected, .model-option:hover, .model-option:focus-visible { background: var(--surface-panel); }
+.model-field>small { max-width: 42ch; }
+fieldset:disabled .model-trigger { opacity: .55; cursor: default; }
 #music-settings .icon-chip { color: var(--text-link); }
 #sound-settings .icon-chip { color: var(--text-success); }
 #broadcast-settings .icon-chip { color: var(--brand-yellow); }

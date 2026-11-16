@@ -138,10 +138,18 @@ impl SettingsRepository {
             &db,
             "SELECT url FROM settings_news_sources ORDER BY position",
         )?;
+        if !["marin", "cedar"].contains(&settings.open_ai_voice.as_str()) {
+            settings.open_ai_voice = "marin".into();
+        }
         settings.validate()?;
         Ok(settings)
     }
     pub fn save(&self, settings: &AppSettings) -> Result<(), String> {
+        let mut normalized = settings.clone();
+        if !["marin", "cedar"].contains(&normalized.open_ai_voice.as_str()) {
+            normalized.open_ai_voice = "marin".into();
+        }
+        let settings = &normalized;
         settings.validate()?;
         let mut db = self
             .0
@@ -202,6 +210,8 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
         include_str!("../migrations/007_article_history.sql"),
         include_str!("../migrations/008_pipeline_recovery.sql"),
         include_str!("../migrations/009_background.sql"),
+        include_str!("../migrations/010_article_queue.sql"),
+        include_str!("../migrations/011_tts_voices.sql"),
     ];
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
@@ -317,7 +327,7 @@ mod tests {
             let before_schema=schema(db);let before_counts=history_counts(db);
             migrate(db).unwrap();migrate(db).unwrap();
             assert_eq!(schema(db),before_schema);assert_eq!(history_counts(db),before_counts);
-            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),9);
+            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),11);
             assert_eq!(db.query_row("SELECT text FROM content_broadcasts WHERE id=1",[],|r|r.get::<_,String>(0)).unwrap(),"Zapisany scenariusz");
             Ok(())
         }).unwrap();
@@ -350,7 +360,7 @@ mod tests {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            9
+            11
         );
     }
     #[test]
@@ -415,7 +425,7 @@ mod tests {
                 assert_eq!(
                     db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                         .unwrap(),
-                    9
+                    11
                 );
                 Ok(())
             })
@@ -500,7 +510,7 @@ mod tests {
         }
         {
             let repo = SettingsRepository::open(&path).unwrap();
-            assert_eq!(repo.load().unwrap().open_ai_voice, "test-voice");
+            assert_eq!(repo.load().unwrap().open_ai_voice, "marin");
             assert_eq!(repo.load().unwrap().text_model, "configured-model");
         }
         std::fs::remove_file(path).unwrap();

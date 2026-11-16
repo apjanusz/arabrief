@@ -1,6 +1,9 @@
+mod chapters;
 mod format;
+#[cfg(test)]
 mod realtime;
 mod segment_cache;
+mod tts;
 use crate::settings::SettingsRepository;
 use format::{MODEL, RATE};
 use rusqlite::{OptionalExtension, params};
@@ -26,6 +29,16 @@ pub struct SpeechAsset {
     verification: String,
     segment_count: usize,
     cached: bool,
+    #[serde(default)]
+    chapters: Vec<ChapterAudio>,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChapterAudio {
+    article_id: String,
+    position: u32,
+    start_ms: u32,
+    end_ms: u32,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Publication {
@@ -63,6 +76,7 @@ struct Prepared {
     voice: String,
     key: String,
     parts: Vec<String>,
+    chapters: Vec<ChapterAudio>,
 }
 trait SpeechProvider {
     fn synthesize<'a>(
@@ -72,15 +86,15 @@ trait SpeechProvider {
         cancel: &'a mut watch::Receiver<bool>,
     ) -> impl std::future::Future<Output = Result<(Vec<u8>, String), String>> + Send + 'a;
 }
-struct Realtime(Arc<SettingsRepository>);
-impl SpeechProvider for Realtime {
+struct OpenAiTts(Arc<SettingsRepository>);
+impl SpeechProvider for OpenAiTts {
     async fn synthesize<'a>(
         &'a self,
         parts: &'a [String],
         voice: &'a str,
         cancel: &'a mut watch::Receiver<bool>,
     ) -> Result<(Vec<u8>, String), String> {
-        realtime::synthesize(parts, voice, cancel, self.0.clone()).await
+        tts::synthesize(parts, voice, cancel, self.0.clone()).await
     }
 }
 impl SpeechService {
@@ -181,6 +195,11 @@ impl SpeechService {
             .parse()
             .map_err(|_| "Nieprawidłowy identyfikator scenariusza")?;
         let voice = voice.unwrap_or(self.repository.load()?.open_ai_voice);
+        let voice = if format::VOICES.contains(&voice.as_str()) {
+            voice
+        } else {
+            "marin".into()
+        };
         if !format::VOICES.contains(&voice.as_str()) {
             return Err("Głos nie jest obsługiwany przez Realtime".into());
         }
@@ -192,7 +211,30 @@ impl SpeechService {
             )
             .map_err(|_| "Nie znaleziono zapisanego scenariusza".into())
         })?;
-        let parts = format::segments(&text)?;
+        let chapter_rows=self.repository.with_database(|db| {
+            let mut statement=db.prepare("SELECT CAST(article_id AS TEXT),position,text,start_ms,end_ms FROM broadcast_chapters WHERE broadcast_id=?1 AND state!='audio_failed' ORDER BY position").map_err(|e|e.to_string())?;
+            statement.query_map([id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,u32>(1)?,r.get::<_,String>(2)?,r.get::<_,Option<u32>>(3)?,r.get::<_,Option<u32>>(4)?))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())
+        })?;
+        let parts = if chapter_rows.is_empty() {
+            format::segments(&text)?
+        } else {
+            chapter_rows
+                .iter()
+                .filter_map(|row| format::segments(&row.2).ok())
+                .flatten()
+                .collect()
+        };
+        let chapters = chapter_rows
+            .into_iter()
+            .filter_map(|(article_id, position, _, start_ms, end_ms)| {
+                Some(ChapterAudio {
+                    article_id,
+                    position,
+                    start_ms: start_ms?,
+                    end_ms: end_ms?,
+                })
+            })
+            .collect();
         let key = format::cache_key(&text, &voice);
         Ok(Prepared {
             broadcast_id: id,
@@ -200,6 +242,7 @@ impl SpeechService {
             voice,
             key,
             parts,
+            chapters,
         })
     }
     fn cached(&self, root: &Path, input: &Prepared) -> Result<Option<SpeechAsset>, String> {
@@ -240,6 +283,7 @@ impl SpeechService {
                 verification,
                 segment_count,
                 cached: true,
+                chapters: self.cached_chapter_spans(input)?,
             }));
         }
         if root.join(resource(&input.key)).exists() {
@@ -275,7 +319,7 @@ impl SpeechService {
             }
             format::verify(&input.text, &asset.transcript)?;
             asset.duration_ms = ((bytes.len() - 44) as u64 * 1000 / (RATE as u64 * 2)) as u32;
-            asset.verification = "realtime_transcript_normalized_exact".into();
+            asset.verification = "tts_input_text".into();
             self.index_asset(&path, input, &asset, &publication.file_hash)?;
             asset.cached = true;
             eprintln!("[recovery] stage=speech action=reindexed_verified_wav");
@@ -320,9 +364,10 @@ impl SpeechService {
             model: MODEL.into(),
             voice: input.voice.clone(),
             transcript,
-            verification: "realtime_transcript_normalized_exact".into(),
+            verification: "tts_input_text".into(),
             segment_count: input.parts.len(),
             cached: false,
+            chapters: input.chapters.clone(),
         };
         let journal = root.join(format!("{}.json", asset.resource_id));
         let publication = Publication {
@@ -436,6 +481,11 @@ impl SpeechService {
             total.cached();
             return Ok(cached);
         }
+        if self.has_chapters(input.broadcast_id)? {
+            return self
+                .generate_chapter_audio(root, input, cancel, provider)
+                .await;
+        }
         let mut model = crate::performance::Span::new("speech.model");
         let (pcm, transcript) = tokio::time::timeout(
             std::time::Duration::from_secs(15 * 60),
@@ -493,7 +543,7 @@ pub async fn speech_generate(
         .app_data_dir()
         .map_err(|_| "Brak katalogu danych aplikacji")?
         .join("audio");
-    let provider = Realtime(service.repository.clone());
+    let provider = OpenAiTts(service.repository.clone());
     service
         .generate(root, broadcast_id, voice, &mut cancel, &provider)
         .await
@@ -519,7 +569,7 @@ mod tests {
         ));
         (Arc::new(SpeechService::new(repo)), root)
     }
-    fn clean(root: &Path) {
+    pub(super) fn clean(root: &Path) {
         if let Ok(files) = std::fs::read_dir(root) {
             for file in files {
                 std::fs::remove_file(file.unwrap().path()).unwrap();
@@ -572,7 +622,7 @@ mod tests {
             .generate(
                 root.clone(),
                 "1".into(),
-                Some("alloy".into()),
+                Some("marin".into()),
                 &mut cancel,
                 &fake,
             )
@@ -590,7 +640,7 @@ mod tests {
             .generate(
                 root.clone(),
                 "1".into(),
-                Some("alloy".into()),
+                Some("marin".into()),
                 &mut cancel,
                 &fake,
             )
@@ -619,7 +669,7 @@ mod tests {
                 .generate(
                     root.clone(),
                     "1".into(),
-                    Some("alloy".into()),
+                    Some("marin".into()),
                     &mut cancel,
                     &fake
                 )
@@ -755,7 +805,7 @@ mod tests {
             .generate(
                 root.clone(),
                 "1".into(),
-                Some("alloy".into()),
+                Some("marin".into()),
                 &mut cancel,
                 &fake,
             )
@@ -765,7 +815,7 @@ mod tests {
         segment_cache::save(
             &service.repository,
             SCRIPT,
-            "alloy",
+            "marin",
             &(vec![0; 48000], SCRIPT.into()),
         )
         .unwrap();
@@ -776,7 +826,7 @@ mod tests {
             .generate(
                 root.clone(),
                 "1".into(),
-                Some("alloy".into()),
+                Some("marin".into()),
                 &mut cancel,
                 &fake,
             )

@@ -21,6 +21,16 @@ function fixture() {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test("partial chapter audio consumes only articles actually included in playback",async()=>{
+  const f=fixture();let prepared,used;
+  const texts=["Pierwszy rozdział.","Drugi rozdział.","Trzeci rozdział."];
+  f.ports.content.generate=async()=>({id:"partial",text:texts.join("\n\n"),sources:[{id:"1"},{id:"2"},{id:"3"}],draft:{segments:texts.map((text,index)=>({text,evidence:[{source_id:String(index+1)}]})),limitations:[],insufficient_material:false}});
+  f.ports.speech.synthesize=async()=>({resourceId:"partial.wav",durationMs:2000,chapters:[{articleId:"1",position:0,startMs:0,endMs:1000},{articleId:"3",position:2,startMs:1000,endMs:2000}]});
+  f.ports.onReady=value=>{prepared=value;};f.ports.news.markUsed=async ids=>{used=ids;};
+  await f.runner.run(settings,false);
+  assert.deepEqual(used,["1","3"]);assert.equal(prepared.script.text,[texts[0],texts[2]].join("\n\n"));assert.equal(prepared.script.draft.insufficient_material,true);
+});
+
 test("manual pipeline prepares before native playback and marks usage after real end", async () => {
   const { runner, ports, events } = fixture();
   let finish;

@@ -18,7 +18,7 @@ export function ContentPreview({ generator, settings, items, speech, player }: {
     void settings.load().then(value => { if (mounted) setModel(value.textModel); }).catch(() => {});
     return () => { mounted = false; };
   }, [settings]);
-  const candidates = items.filter(item => !excluded.includes(item.id)).slice(0,8);
+  const candidates = items.filter(item => !excluded.includes(item.id)).slice(0,20);
   async function generate() {
     setBusy(true);
     try {
@@ -34,10 +34,10 @@ export function ContentPreview({ generator, settings, items, speech, player }: {
   return (
     <section aria-labelledby="content-heading" className="mt-6 border-t border-slate-700 pt-5">
       <h3 id="content-heading" className="font-medium">Scenariusz testowej audycji</h3>
-      <p className="mt-2 text-sm text-slate-400">Do OpenAI zostanie wysłanych do 8 najnowszych wiadomości z powyższej listy oraz kontekst poprzednich scenariuszy. Generowanie korzysta z płatnego API. Klucz ustawisz w natywnym magazynie Windows.</p>
+      <p className="mt-2 text-sm text-slate-400">Wybieramy trzy najstarsze dostępne artykuły z kolejki. Każdy rozdział korzysta z osobnego żądania OpenAI z odczytem strony. Generowanie korzysta z płatnego API. Klucz ustawisz w natywnym magazynie Windows.</p>
       <label htmlFor="text-model" className="mt-3 block text-sm">Model tekstowy (Responses API i Structured Outputs)</label>
       <input id="text-model" value={model} disabled={busy} onChange={e => setModel(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950 p-2" />
-      <p className="mt-2 text-xs text-slate-400">Materiały: {candidates.length}. Scenariusz będzie po polsku, orientacyjnie 2–3 minuty. Przy samych nagłówkach może być krótszy.</p>
+      <p className="mt-2 text-xs text-slate-400">Materiały: {candidates.length}. Do trzech rozdziałów po polsku z treści artykułów. Niedostępne materiały są pomijane.</p>
       <button disabled={busy || candidates.length<1 || !model.trim()} onClick={() => void generate()} className="mt-3 rounded-lg bg-teal-700 px-4 py-2 disabled:opacity-50">{busy ? "Generowanie scenariusza…" : "Wygeneruj testową audycję"}</button>
       {broadcast && <article className="mt-5 rounded-lg border border-slate-700 p-4">
         <h4 className="text-lg font-medium">{broadcast.title}</h4>

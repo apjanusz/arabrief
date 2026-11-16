@@ -8,6 +8,14 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+pub(crate) const MAX_NEWS_AGE_SECONDS: i64 = 7 * 24 * 60 * 60;
+
+pub(crate) fn within_news_window(item: &NewsItem, timestamp: i64) -> bool {
+    item.published_at
+        .as_ref()
+        .and_then(|date| DateTime::parse_from_rfc3339(date).ok())
+        .is_some_and(|date| date.timestamp() >= timestamp.saturating_sub(MAX_NEWS_AGE_SECONDS))
+}
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +42,9 @@ pub struct FetchError {
 /// Provider-neutral port. Implementations return only supplied source metadata.
 pub trait NewsProvider: Send + Sync {
     fn fetch_topic(&self, topic: &str) -> Result<Vec<NewsItem>, FetchError>;
+    fn fetch_since(&self, topic: &str, _since: Option<i64>) -> Result<Vec<NewsItem>, FetchError> {
+        self.fetch_topic(topic)
+    }
 }
 pub struct GoogleNews {
     client: Client,
@@ -51,9 +62,18 @@ impl GoogleNews {
         })
     }
     fn url(topic: &str) -> Url {
+        Self::url_since(topic, None, now())
+    }
+    fn url_since(topic: &str, since: Option<i64>, timestamp: i64) -> Url {
+        let cutoff = timestamp.saturating_sub(MAX_NEWS_AGE_SECONDS);
+        let lower = since
+            .map(|date| date.saturating_sub(86400))
+            .unwrap_or(cutoff)
+            .clamp(cutoff, timestamp);
+        let date = DateTime::<Utc>::from_timestamp(lower, 0).expect("valid search date");
         let mut url = Url::parse("https://news.google.com/rss/search").expect("constant URL");
         url.query_pairs_mut()
-            .append_pair("q", topic)
+            .append_pair("q", &format!("{topic} after:{}", date.format("%Y-%m-%d")))
             .append_pair("hl", "pl")
             .append_pair("gl", "PL")
             .append_pair("ceid", "PL:pl");
@@ -63,6 +83,19 @@ impl GoogleNews {
 impl NewsProvider for GoogleNews {
     fn fetch_topic(&self, topic: &str) -> Result<Vec<NewsItem>, FetchError> {
         self.fetch_url(topic, Self::url(topic))
+    }
+    fn fetch_since(&self, topic: &str, since: Option<i64>) -> Result<Vec<NewsItem>, FetchError> {
+        let url = Self::url_since(topic, since, now());
+        // One retry of an unavailable public RSS endpoint; never retry a cooldown.
+        let first = self.fetch_url(topic, url.clone());
+        if first
+            .as_ref()
+            .is_err_and(|error| error.retry_after.is_none())
+        {
+            self.fetch_url(topic, url)
+        } else {
+            first
+        }
     }
 }
 impl GoogleNews {
@@ -175,17 +208,17 @@ fn parse(bytes: &[u8], feed_url: &str, topic: &str) -> Result<Vec<NewsItem>, Str
     }
     Ok(items)
 }
-fn normalized(text: &str) -> String {
+pub(crate) fn normalized(text: &str) -> String {
     text.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
         .to_lowercase()
 }
-fn canonical(raw: &str) -> String {
+pub(crate) fn canonical(raw: &str) -> String {
     let mut url = Url::parse(raw).expect("validated URL");
     let google_news = url.host_str() == Some("news.google.com");
     url.set_fragment(None);
-    let pairs: Vec<_> = url
+    let mut pairs: Vec<_> = url
         .query_pairs()
         .filter(|(key, _)| {
             !(key.starts_with("utm_")
@@ -194,22 +227,12 @@ fn canonical(raw: &str) -> String {
         })
         .map(|(k, v)| (k.into_owned(), v.into_owned()))
         .collect();
+    pairs.sort();
     url.set_query(None);
     if !pairs.is_empty() {
         url.query_pairs_mut().extend_pairs(pairs);
     }
     url.into()
-}
-fn fingerprint(item: &NewsItem) -> Option<String> {
-    // Conservative fallback: same title, publisher and UTC day. Never semantic/AI deduplication.
-    Some(
-        serde_json::to_string(&(
-            normalized(&item.title),
-            normalized(item.source.as_ref()?),
-            item.published_at.as_ref()?.get(..10)?,
-        ))
-        .expect("string tuple"),
-    )
 }
 fn now() -> i64 {
     Utc::now().timestamp()
@@ -221,13 +244,18 @@ impl NewsRepository {
         self.0.with_database(|db| {
             let tx = db.transaction().map_err(|e| e.to_string())?;
             for item in items {
-                let url = canonical(&item.url); let fingerprint = fingerprint(item);
+                let url = canonical(&item.url);
                 let json = serde_json::to_string(item).map_err(|e| e.to_string())?;
-                let existing: Option<i64> = tx.query_row("SELECT article_id FROM news_aliases WHERE provider=?3 AND ((kind='url' AND value=?1) OR (kind='guid' AND value=?4)) UNION SELECT id FROM news_articles WHERE canonical_url=?1 OR fingerprint=?2 OR (provider=?3 AND guid=?4) ORDER BY 1 LIMIT 1", params![url,fingerprint,item.provider,item.guid], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
+                let existing: Option<i64> = tx.query_row("SELECT article_id FROM news_aliases WHERE provider=?2 AND ((kind='url' AND value=?1) OR (kind='guid' AND value=?3)) UNION SELECT id FROM news_articles WHERE canonical_url=?1 OR (provider=?2 AND guid=?3) ORDER BY 1 LIMIT 1", params![url,item.provider,item.guid], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
                 let id = if let Some(id) = existing { id } else {
-                    tx.execute("INSERT INTO news_articles(provider,guid,canonical_url,fingerprint,metadata_json,first_seen_at) VALUES (?1,?2,?3,?4,?5,?6)", params![item.provider,item.guid,url,fingerprint,json,now()]).map_err(|e| e.to_string())?;
+                    tx.execute("INSERT INTO news_articles(provider,guid,canonical_url,metadata_json,first_seen_at) VALUES (?1,?2,?3,?4,?5)", params![item.provider,item.guid,url,json,now()]).map_err(|e| e.to_string())?;
                     tx.last_insert_rowid()
                 };
+                let published=item.published_at.as_ref().and_then(|date|DateTime::parse_from_rfc3339(date).ok()).map(|date|date.timestamp());
+                tx.execute("INSERT OR IGNORE INTO article_queue(article_id,published_at) VALUES (?1,?2)",params![id,published]).map_err(|e|e.to_string())?;
+                if let Some(published)=published {
+                    tx.execute("INSERT INTO news_pool_state VALUES (?1,?2) ON CONFLICT(topic) DO UPDATE SET newest_at=MAX(newest_at,excluded.newest_at)",params![topic,published]).map_err(|e|e.to_string())?;
+                }
                 for (kind,value) in [("url",Some(&url)),("guid",item.guid.as_ref())] {
                     if let Some(value) = value { tx.execute("INSERT INTO news_aliases VALUES (?1,?2,?3,?4,?5) ON CONFLICT(provider,kind,value) DO UPDATE SET metadata_json=excluded.metadata_json",params![item.provider,kind,value,id,json]).map_err(|e| e.to_string())?; }
                 }
@@ -237,11 +265,13 @@ impl NewsRepository {
         })
     }
     fn candidates(&self, topics: &[String]) -> Result<Vec<NewsItem>, String> {
+        let key = crate::recovery::settings_key(&self.0.load()?);
+        let cutoff = now().saturating_sub(MAX_NEWS_AGE_SECONDS);
         self.0.with_database(|db| {
             let mut items: Vec<NewsItem> = Vec::new();
             for topic in topics {
-                let mut statement = db.prepare("SELECT a.id,a.metadata_json FROM news_articles a JOIN news_topic_articles t ON t.article_id=a.id WHERE t.topic=?1 AND NOT EXISTS(SELECT 1 FROM news_usage u WHERE u.article_id=a.id) AND NOT EXISTS(SELECT 1 FROM content_sources c WHERE c.article_id=a.id) ORDER BY t.last_seen_at DESC LIMIT 100").map_err(|e| e.to_string())?;
-                let rows = statement.query_map([normalized(topic)], |r| Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?))).map_err(|e| e.to_string())?;
+                let mut statement = db.prepare("SELECT a.id,a.metadata_json FROM news_articles a JOIN news_topic_articles t ON t.article_id=a.id JOIN article_queue q ON q.article_id=a.id WHERE t.topic=?1 AND (a.provider!='google_news' OR q.published_at>=?3) AND q.skipped=0 AND q.retry_at<=unixepoch() AND NOT EXISTS(SELECT 1 FROM news_usage u WHERE u.article_id=a.id) AND NOT EXISTS(SELECT 1 FROM content_sources c JOIN playback_receipts r ON r.broadcast_id=c.broadcast_id WHERE c.article_id=a.id) AND NOT EXISTS(SELECT 1 FROM content_sources c JOIN pipeline_preparations p ON p.broadcast_id=c.broadcast_id JOIN content_broadcasts b ON b.id=c.broadcast_id WHERE c.article_id=a.id AND p.settings_key=?2 AND datetime(b.created_at)>datetime('now','-6 hours')) ORDER BY q.published_at IS NULL,q.published_at,a.id LIMIT 20").map_err(|e| e.to_string())?;
+                let rows = statement.query_map(params![normalized(topic),key,cutoff], |r| Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?))).map_err(|e| e.to_string())?;
                 for row in rows {
                     let (id,json) = row.map_err(|e| e.to_string())?;
                     let id = id.to_string();
@@ -250,9 +280,24 @@ impl NewsRepository {
                     item.id = id; item.topics = vec![topic.clone()]; items.push(item);
                 }
             }
-            items.sort_by(|a,b| b.published_at.cmp(&a.published_at).then(a.id.cmp(&b.id)));
+            items.sort_by_key(|item| (item.published_at.as_ref().and_then(|date|DateTime::parse_from_rfc3339(date).ok()).map_or(i64::MAX,|date|date.timestamp()),item.id.parse::<i64>().unwrap_or(i64::MAX)));
+            items.truncate(20);
             Ok(items)
         })
+    }
+    fn newest(&self, topic: &str) -> Result<Option<i64>, String> {
+        self.0.with_database(|db| {
+            db.query_row(
+                "SELECT newest_at FROM news_pool_state WHERE topic=?1",
+                [normalized(topic)],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())
+        })
+    }
+    fn known(&self, item: &NewsItem) -> Result<bool, String> {
+        self.0.with_database(|db|db.query_row("SELECT EXISTS(SELECT 1 FROM news_articles WHERE canonical_url=?1 OR (provider=?2 AND guid=?3) UNION SELECT 1 FROM news_aliases WHERE provider=?2 AND ((kind='url' AND value=?1) OR (kind='guid' AND value=?3)))",params![canonical(&item.url),item.provider,item.guid],|r|r.get(0)).map_err(|e|e.to_string()))
     }
     fn claim(&self, topics: &[String], timestamp: i64) -> Result<Vec<String>, String> {
         self.0.with_database(|db| {
@@ -262,8 +307,8 @@ impl NewsRepository {
             let mut due = Vec::new();
             for topic in topics { if next(&normalized(topic))? <= timestamp { due.push(topic.clone()); } }
             if !due.is_empty() {
-                tx.execute("INSERT INTO news_fetch_state VALUES ('google_news','',?1,NULL) ON CONFLICT(provider,topic) DO UPDATE SET next_allowed_at=excluded.next_allowed_at,last_error=NULL",[timestamp+60]).map_err(|e| e.to_string())?;
-                for topic in &due { tx.execute("INSERT INTO news_fetch_state VALUES ('google_news',?1,?2,NULL) ON CONFLICT(provider,topic) DO UPDATE SET next_allowed_at=excluded.next_allowed_at,last_error=NULL",params![normalized(topic),timestamp+300]).map_err(|e| e.to_string())?; }
+                tx.execute("INSERT INTO news_fetch_state VALUES ('google_news','',?1,NULL) ON CONFLICT(provider,topic) DO UPDATE SET next_allowed_at=excluded.next_allowed_at,last_error=NULL",[timestamp+2]).map_err(|e| e.to_string())?;
+                for topic in &due { tx.execute("INSERT INTO news_fetch_state VALUES ('google_news',?1,?2,NULL) ON CONFLICT(provider,topic) DO UPDATE SET next_allowed_at=excluded.next_allowed_at,last_error=NULL",params![normalized(topic),timestamp+2]).map_err(|e| e.to_string())?; }
             }
             tx.commit().map_err(|e| e.to_string())?; Ok(due)
         })
@@ -328,7 +373,7 @@ pub struct TopicStatus {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewsResult {
-    items: Vec<NewsItem>,
+    pub(crate) items: Vec<NewsItem>,
     topics: Vec<TopicStatus>,
     fetched_topics: Vec<String>,
 }
@@ -344,20 +389,39 @@ impl NewsService {
         }
     }
     fn fetch(&self, topics: Vec<String>) -> Result<NewsResult, String> {
+        self.fetch_with(topics, &GoogleNews::new()?)
+    }
+    pub(crate) fn fetch_with(
+        &self,
+        topics: Vec<String>,
+        provider: &dyn NewsProvider,
+    ) -> Result<NewsResult, String> {
         let mut total = crate::performance::Span::new("rss.total");
         let _gate = self
             .gate
             .try_lock()
             .map_err(|_| "Pobieranie wiadomości już trwa")?;
         let topics = validate_topics(topics)?;
-        let provider = GoogleNews::new()?;
-        let due = self.repository.claim(&topics, now())?;
+        let existing = self.repository.candidates(&topics)?;
+        let due = if existing.len() < 3 {
+            self.repository.claim(&topics, now())?
+        } else {
+            vec![]
+        };
         let mut fetched_topics = Vec::new();
         let results = crate::performance::measure("rss.fetch_queue", || {
             crate::work_queue::run(
                 &due,
                 4,
-                |topic| provider.fetch_topic(topic),
+                |topic| {
+                    self.repository
+                        .newest(topic)
+                        .map_err(|message| FetchError {
+                            message,
+                            retry_after: None,
+                        })
+                        .and_then(|since| provider.fetch_since(topic, since))
+                },
                 |result| {
                     result
                         .as_ref()
@@ -367,12 +431,40 @@ impl NewsService {
             )
         })?;
         let mut persist = crate::performance::Span::new("rss.persist_sqlite");
+        let mut incoming = Vec::new();
         for (index, result) in results {
             let topic = &due[index];
             fetched_topics.push(topic.clone());
             match result {
-                Ok(items) => self.repository.save(topic, &items)?,
+                Ok(items) => incoming.extend(items.into_iter().map(|item| (topic.clone(), item))),
                 Err(error) => self.repository.error(topic, &error)?,
+            }
+        }
+        let timestamp = now();
+        incoming.retain(|(_, item)| {
+            let keep = within_news_window(item, timestamp);
+            if !keep {
+                eprintln!(
+                    "[pipeline] stage=rss action=skipped reason=missing_or_expired_publication_date"
+                );
+            }
+            keep
+        });
+        incoming.sort_by_key(|(_, item)| {
+            item.published_at
+                .as_ref()
+                .and_then(|date| DateTime::parse_from_rfc3339(date).ok())
+                .map_or(i64::MAX, |date| date.timestamp())
+        });
+        let mut admitted = 0;
+        for (topic, item) in incoming {
+            let known = self.repository.known(&item)?;
+            // Keep topic aliases for known records; only new identities consume pool slots.
+            if known || admitted < 20 - existing.len() {
+                self.repository.save(&topic, std::slice::from_ref(&item))?;
+                if !known {
+                    admitted += 1;
+                }
             }
         }
         persist.success();
@@ -452,6 +544,20 @@ mod tests {
             SettingsRepository::open(std::path::Path::new(":memory:")).unwrap(),
         ))
     }
+    fn queue_fixture() -> Vec<NewsItem> {
+        let mut items = fixture();
+        let timestamp = now();
+        for (index, item) in items.iter_mut().enumerate() {
+            if item.published_at.is_some() {
+                item.published_at = Some(
+                    DateTime::<Utc>::from_timestamp(timestamp - (3 - index as i64) * 86400, 0)
+                        .unwrap()
+                        .to_rfc3339(),
+                );
+            }
+        }
+        items
+    }
     #[test]
     fn preserves_metadata_without_inventing_content() {
         let items = fixture();
@@ -475,7 +581,7 @@ mod tests {
     #[test]
     fn dedup_sort_and_usage_history_are_separate_from_fetching() {
         let repo = repo();
-        let items = fixture();
+        let items = queue_fixture();
         repo.save("nauka", &items).unwrap();
         let mut copy = items[0].clone();
         copy.url = "https://news.google.com/rss/articles/other".into();
@@ -485,9 +591,9 @@ mod tests {
         let topics = vec!["nauka".into(), "świat".into()];
         let results = repo.candidates(&topics).unwrap();
         assert_eq!(results.len(), 3);
-        assert_eq!(results[0].title, "Nowsza wiadomość");
-        assert!(results.last().unwrap().published_at.is_none());
-        assert_eq!(results[1].topics.len(), 2);
+        assert_eq!(results[0].title, items[0].title);
+        assert!(results.iter().all(|item| item.published_at.is_some()));
+        assert_eq!(results[1].topics.len(), 1);
         repo.mark_used(&[results[1].id.clone()], "broadcast-1")
             .unwrap();
         repo.save("nauka", &items).unwrap();
@@ -501,7 +607,7 @@ mod tests {
     #[test]
     fn corrupt_article_does_not_hide_healthy_candidates() {
         let repo = repo();
-        repo.save("nauka", &fixture()).unwrap();
+        repo.save("nauka", &queue_fixture()).unwrap();
         repo.0
             .with_database(|db| {
                 db.execute(
@@ -512,14 +618,14 @@ mod tests {
                 Ok(())
             })
             .unwrap();
-        assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 2);
+        assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 1);
     }
     #[test]
     fn persistent_rate_claims_and_provider_cooldown() {
         let repo = repo();
         let topics = vec!["nauka".into()];
         assert_eq!(repo.claim(&topics, 1000).unwrap().len(), 1);
-        assert!(repo.claim(&topics, 1061).unwrap().is_empty());
+        assert!(repo.claim(&topics, 1001).unwrap().is_empty());
         assert!(repo.claim(&["inny".into()], 1001).unwrap().is_empty());
         assert_eq!(repo.claim(&topics, 1300).unwrap().len(), 1);
         repo.error(
@@ -538,10 +644,16 @@ mod tests {
     }
     #[test]
     fn url_query_is_encoded_and_topics_validated() {
-        let url = GoogleNews::url("nauka & zdrowie # Polska");
+        let timestamp = 1_700_000_000;
+        let url = GoogleNews::url_since("nauka & zdrowie # Polska", None, timestamp);
         assert_eq!(
             url.query_pairs().find(|(k, _)| k == "q").unwrap().1,
-            "nauka & zdrowie # Polska"
+            format!(
+                "nauka & zdrowie # Polska after:{}",
+                DateTime::<Utc>::from_timestamp(timestamp - MAX_NEWS_AGE_SECONDS, 0)
+                    .unwrap()
+                    .format("%Y-%m-%d")
+            )
         );
         assert_eq!(
             validate_topics(vec![" Nauka ".into(), "nauka".into()]).unwrap(),
@@ -556,10 +668,10 @@ mod tests {
     #[test]
     fn aliases_keep_used_articles_excluded_after_title_changes() {
         let repo = repo();
-        let original = fixture()[0].clone();
+        let original = queue_fixture()[0].clone();
         repo.save("nauka", std::slice::from_ref(&original)).unwrap();
         let mut alias = original.clone();
-        alias.guid = Some("alias-guid".into());
+        alias.guid = original.guid.clone();
         alias.url = "https://example.org/alias".into();
         repo.save("nauka", std::slice::from_ref(&alias)).unwrap();
         let items = repo.candidates(&["nauka".into()]).unwrap();
@@ -578,7 +690,7 @@ mod tests {
         ));
         {
             let repo = NewsRepository(Arc::new(SettingsRepository::open(&path).unwrap()));
-            repo.save("nauka", &fixture()).unwrap();
+            repo.save("nauka", &queue_fixture()).unwrap();
             let items = repo.candidates(&["nauka".into()]).unwrap();
             repo.mark_used(&[items[0].id.clone()], "broadcast-1")
                 .unwrap();
@@ -586,8 +698,8 @@ mod tests {
         }
         {
             let repo = NewsRepository(Arc::new(SettingsRepository::open(&path).unwrap()));
-            assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 2);
-            assert!(repo.claim(&["nauka".into()], 1100).unwrap().is_empty());
+            assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 1);
+            assert!(repo.claim(&["nauka".into()], 1001).unwrap().is_empty());
         }
         std::fs::remove_file(path).unwrap();
     }
@@ -597,5 +709,93 @@ mod tests {
         let items = GoogleNews::new().unwrap().fetch_topic("nauka").unwrap();
         assert!(!items.is_empty());
         println!("Google News live: {} RSS items", items.len());
+    }
+    #[test]
+    fn seven_day_boundary_is_exact_and_undated_results_are_excluded() {
+        let timestamp = 1_700_000_000;
+        let mut item = fixture()[0].clone();
+        for (published, expected) in [
+            (timestamp - MAX_NEWS_AGE_SECONDS, true),
+            (timestamp - MAX_NEWS_AGE_SECONDS - 1, false),
+            (timestamp - 1, true),
+        ] {
+            item.published_at = Some(
+                DateTime::<Utc>::from_timestamp(published, 0)
+                    .unwrap()
+                    .to_rfc3339(),
+            );
+            assert_eq!(within_news_window(&item, timestamp), expected);
+        }
+        item.published_at = None;
+        assert!(!within_news_window(&item, timestamp));
+        item.published_at = Some("bad date".into());
+        assert!(!within_news_window(&item, timestamp));
+    }
+    #[test]
+    fn first_fetch_and_old_watermark_cannot_expand_the_seven_day_window() {
+        let timestamp = 1_700_000_000;
+        let query = |since| {
+            GoogleNews::url_since("Nauka", since, timestamp)
+                .query_pairs()
+                .find(|(key, _)| key == "q")
+                .unwrap()
+                .1
+                .into_owned()
+        };
+        assert_eq!(query(None), query(Some(timestamp - 30 * 86400)));
+        let overlapping = DateTime::<Utc>::from_timestamp(timestamp - 3 * 86400, 0).unwrap();
+        assert_eq!(
+            query(Some(timestamp - 2 * 86400)),
+            format!("Nauka after:{}", overlapping.format("%Y-%m-%d"))
+        );
+    }
+    #[test]
+    fn stale_feed_results_are_not_admitted_and_existing_history_is_preserved() {
+        struct Mixed(Vec<NewsItem>);
+        impl NewsProvider for Mixed {
+            fn fetch_topic(&self, _: &str) -> Result<Vec<NewsItem>, FetchError> {
+                Ok(self.0.clone())
+            }
+        }
+        let mut items = queue_fixture();
+        items[1].published_at = Some(
+            DateTime::<Utc>::from_timestamp(now() - MAX_NEWS_AGE_SECONDS - 60, 0)
+                .unwrap()
+                .to_rfc3339(),
+        );
+        let repository =
+            Arc::new(SettingsRepository::open(std::path::Path::new(":memory:")).unwrap());
+        let service = NewsService::new(repository.clone());
+        let result = service
+            .fetch_with(vec!["nauka".into()], &Mixed(items.clone()))
+            .unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].title, items[0].title);
+        repository
+            .with_database(|db| {
+                assert_eq!(
+                    db.query_row("SELECT count(*) FROM news_articles", [], |r| r
+                        .get::<_, u32>(0))
+                        .unwrap(),
+                    1
+                );
+                Ok(())
+            })
+            .unwrap();
+        // Previously stored entries age out of selection, without deleting history.
+        let repo = NewsRepository(repository.clone());
+        repo.save("nauka", &items).unwrap();
+        assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 1);
+        repository
+            .with_database(|db| {
+                assert_eq!(
+                    db.query_row("SELECT count(*) FROM news_articles", [], |r| r
+                        .get::<_, u32>(0))
+                        .unwrap(),
+                    3
+                );
+                Ok(())
+            })
+            .unwrap();
     }
 }
