@@ -1,5 +1,6 @@
 mod format;
 mod realtime;
+mod segment_cache;
 use crate::settings::SettingsRepository;
 use format::{MODEL, RATE};
 use rusqlite::{OptionalExtension, params};
@@ -14,7 +15,7 @@ use std::{
 use tauri::Manager;
 use tokio::sync::watch;
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpeechAsset {
     resource_id: String,
@@ -25,6 +26,11 @@ pub struct SpeechAsset {
     verification: String,
     segment_count: usize,
     cached: bool,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Publication {
+    asset: SpeechAsset,
+    file_hash: String,
 }
 struct Job {
     id: String,
@@ -52,6 +58,7 @@ pub struct SpeechService {
     jobs: Arc<Jobs>,
 }
 struct Prepared {
+    broadcast_id: i64,
     text: String,
     voice: String,
     key: String,
@@ -65,7 +72,7 @@ trait SpeechProvider {
         cancel: &'a mut watch::Receiver<bool>,
     ) -> impl std::future::Future<Output = Result<(Vec<u8>, String), String>> + Send + 'a;
 }
-struct Realtime;
+struct Realtime(Arc<SettingsRepository>);
 impl SpeechProvider for Realtime {
     async fn synthesize<'a>(
         &'a self,
@@ -73,10 +80,19 @@ impl SpeechProvider for Realtime {
         voice: &'a str,
         cancel: &'a mut watch::Receiver<bool>,
     ) -> Result<(Vec<u8>, String), String> {
-        realtime::synthesize(parts, voice, cancel).await
+        realtime::synthesize(parts, voice, cancel, self.0.clone()).await
     }
 }
 impl SpeechService {
+    pub(crate) fn restore_audio(
+        &self,
+        root: &Path,
+        id: &str,
+        voice: String,
+    ) -> Result<Option<SpeechAsset>, String> {
+        let input = self.prepare(id, Some(voice))?;
+        self.cached(root, &input)
+    }
     pub fn new(repository: Arc<SettingsRepository>) -> Self {
         Self {
             repository,
@@ -179,6 +195,7 @@ impl SpeechService {
         let parts = format::segments(&text)?;
         let key = format::cache_key(&text, &voice);
         Ok(Prepared {
+            broadcast_id: id,
             text,
             voice,
             key,
@@ -226,14 +243,49 @@ impl SpeechService {
             }));
         }
         if root.join(resource(&input.key)).exists() {
-            return Err("Istnieje plik audio bez poprawnego indeksu SQLite. Nie ponowiono płatnego żądania.".into());
+            // WAV publication succeeded but the SQLite write may have failed or been interrupted.
+            let journal = root.join(format!("{}.json", resource(&input.key)));
+            if std::fs::metadata(&journal)
+                .map_err(|_| "Brak dziennika publikacji WAV")?
+                .len()
+                > 128 * 1024
+            {
+                return Err("Nieprawidłowy dziennik WAV".into());
+            }
+            let publication: Publication =
+                serde_json::from_slice(&std::fs::read(journal).map_err(|_| "Brak dziennika WAV")?)
+                    .map_err(|_| "Uszkodzony dziennik WAV")?;
+            let path = root.join(resource(&input.key));
+            if std::fs::metadata(&path).map_err(|_| "Brak WAV")?.len()
+                > (format::MAX_PCM + 44) as u64
+            {
+                return Err("WAV przekracza limit".into());
+            }
+            let bytes = std::fs::read(&path).map_err(|_| "Nie można odczytać WAV")?;
+            let mut asset = publication.asset;
+            if asset.resource_id != resource(&input.key)
+                || asset.voice != input.voice
+                || asset.model != MODEL
+                || asset.segment_count != input.parts.len()
+                || bytes.len() < 46
+                || format::hash(&bytes) != publication.file_hash
+                || format::wav(&bytes[44..])? != bytes
+            {
+                return Err("Nieprawidłowy zachowany WAV".into());
+            }
+            format::verify(&input.text, &asset.transcript)?;
+            asset.duration_ms = ((bytes.len() - 44) as u64 * 1000 / (RATE as u64 * 2)) as u32;
+            asset.verification = "realtime_transcript_normalized_exact".into();
+            self.index_asset(&path, input, &asset, &publication.file_hash)?;
+            asset.cached = true;
+            eprintln!("[recovery] stage=speech action=reindexed_verified_wav");
+            return Ok(Some(asset));
         }
         Ok(None)
     }
     fn persist(
         &self,
         root: &Path,
-        broadcast_id: &str,
         input: &Prepared,
         pcm: &[u8],
         transcript: String,
@@ -250,7 +302,7 @@ impl SpeechService {
             input.key,
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
-        let mut cleanup = Cleanup(vec![temp.clone()]);
+        let _cleanup = Cleanup(vec![temp.clone()]);
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -261,9 +313,6 @@ impl SpeechService {
             .map_err(|_| "Nie można zapisać WAV")?;
         drop(file);
         check_cancel(cancel)?;
-        // Atomic publication without overwriting an existing cache file (same directory/volume).
-        std::fs::hard_link(&temp,&path).map_err(|_|"Nie można opublikować WAV; plik już istnieje lub system plików nie obsługuje dowiązań")?;
-        cleanup.0.push(path.clone());
         let duration_ms = (pcm.len() as u64 * 1000 / (RATE as u64 * 2)) as u32;
         let asset = SpeechAsset {
             resource_id,
@@ -275,13 +324,81 @@ impl SpeechService {
             segment_count: input.parts.len(),
             cached: false,
         };
+        let journal = root.join(format!("{}.json", asset.resource_id));
+        let publication = Publication {
+            asset: asset.clone(),
+            file_hash: format::hash(&bytes),
+        };
+        let mut metadata =
+            std::fs::File::create(&journal).map_err(|_| "Nie można zapisać dziennika WAV")?;
+        metadata
+            .write_all(&serde_json::to_vec(&publication).map_err(|_| "Błąd dziennika WAV")?)
+            .and_then(|_| metadata.sync_all())
+            .map_err(|_| "Nie można zapisać dziennika WAV")?;
+        drop(metadata);
+        check_cancel(cancel)?;
+        // Keep the complete WAV and its journal even if a subsequent database write fails.
+        std::fs::hard_link(&temp,&path).map_err(|_|"Nie można opublikować WAV; plik już istnieje lub system plików nie obsługuje dowiązań")?;
+        check_cancel(cancel)?;
+        self.index_asset(&path, input, &asset, &publication.file_hash)?;
+        Ok(asset)
+    }
+    fn index_asset(
+        &self,
+        path: &Path,
+        input: &Prepared,
+        asset: &SpeechAsset,
+        file_hash: &str,
+    ) -> Result<(), String> {
         self.repository.with_database(|db| {
-            check_cancel(cancel)?;
-            db.execute("INSERT INTO speech_assets VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,1,16,?11,?12,?13)",params![input.key,broadcast_id,MODEL,input.voice,asset.resource_id,path.to_string_lossy(),format::hash(&bytes),chrono::Utc::now().to_rfc3339(),duration_ms,RATE,input.parts.len() as u32,asset.transcript,asset.verification]).map_err(|_|"Nie można zapisać metadanych audio")?;
+            db.execute("INSERT INTO speech_assets VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,1,16,?11,?12,?13)",params![input.key,input.broadcast_id,MODEL,input.voice,asset.resource_id,path.to_string_lossy(),file_hash,chrono::Utc::now().to_rfc3339(),asset.duration_ms,RATE,input.parts.len() as u32,asset.transcript,asset.verification]).map_err(|_|"Nie można zapisać metadanych audio")?;
+            Ok(())
+        })
+    }
+    fn repair_cached(
+        &self,
+        root: &Path,
+        input: &Prepared,
+        cancel: &watch::Receiver<bool>,
+    ) -> Result<Option<SpeechAsset>, String> {
+        let mut pcm = Vec::new();
+        let mut transcripts = Vec::new();
+        for text in &input.parts {
+            let Some((audio, transcript)) =
+                segment_cache::load(&self.repository, text, &input.voice)?
+            else {
+                return Ok(None);
+            };
+            if pcm.len() + audio.len() > format::MAX_PCM {
+                return Ok(None);
+            }
+            pcm.extend(audio);
+            transcripts.push(transcript);
+        }
+        let transcript = transcripts.join("\n\n");
+        format::verify(&input.text, &transcript)?;
+        check_cancel(cancel)?;
+        let path = root.join(resource(&input.key));
+        if path.exists() {
+            let archive = root.join(format!(
+                "{}.corrupt-{}",
+                resource(&input.key),
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+            ));
+            std::fs::rename(&path, archive)
+                .map_err(|_| "Nie można odłożyć uszkodzonego cache WAV")?;
+        }
+        self.repository.with_database(|db| {
+            db.execute("DELETE FROM speech_assets WHERE cache_key=?1", [&input.key])
+                .map_err(|e| e.to_string())?;
             Ok(())
         })?;
-        cleanup.0.retain(|p| p != &path); // keep completed file, remove only .part
-        Ok(asset)
+        let asset = self.persist(root, input, &pcm, transcript, cancel)?;
+        eprintln!("[recovery] stage=speech action=rebuilt_wav_from_verified_segments");
+        Ok(Some(SpeechAsset {
+            cached: true,
+            ..asset
+        }))
     }
     async fn generate(
         self: Arc<Self>,
@@ -291,34 +408,54 @@ impl SpeechService {
         cancel: &mut watch::Receiver<bool>,
         provider: &impl SpeechProvider,
     ) -> Result<SpeechAsset, String> {
+        let mut total = crate::performance::Span::new("speech.total");
         check_cancel(cancel)?;
         let service = self.clone();
         let id = broadcast_id.clone();
         let directory = root.clone();
+        let receiver = cancel.clone();
         let (input, cached) = tauri::async_runtime::spawn_blocking(move || {
-            let input = service.prepare(&id, voice)?;
-            let cached = service.cached(&directory, &input)?;
+            let input = crate::performance::measure("speech.prepare_sqlite", || {
+                service.prepare(&id, voice)
+            })?;
+            let cached = crate::performance::measure("speech.cache_verify", || {
+                match service.cached(&directory, &input) {
+                    Ok(value) => Ok(value),
+                    Err(error) => match service.repair_cached(&directory, &input, &receiver)? {
+                        Some(asset) => Ok(Some(asset)),
+                        None => Err(error),
+                    },
+                }
+            })?;
             Ok::<_, String>((input, cached))
         })
         .await
         .map_err(|_| "Błąd przygotowania audio")??;
         check_cancel(cancel)?;
         if let Some(cached) = cached {
+            total.cached();
             return Ok(cached);
         }
+        let mut model = crate::performance::Span::new("speech.model");
         let (pcm, transcript) = tokio::time::timeout(
             std::time::Duration::from_secs(15 * 60),
             provider.synthesize(&input.parts, &input.voice, cancel),
         )
         .await
         .map_err(|_| "Przekroczono całkowity czas generowania audio")??;
+        model.success();
+        drop(model);
         check_cancel(cancel)?;
         let receiver = cancel.clone();
-        tauri::async_runtime::spawn_blocking(move || {
-            self.persist(&root, &broadcast_id, &input, &pcm, transcript, &receiver)
+        let asset = tauri::async_runtime::spawn_blocking(move || {
+            crate::performance::measure("speech.persist_wav_sqlite", || {
+                self.persist(&root, &input, &pcm, transcript, &receiver)
+            })
         })
         .await
-        .map_err(|_| "Błąd zapisu audio")?
+        .map_err(|_| "Błąd zapisu audio")??;
+        total.success();
+        Ok(asset)
     }
 }
 struct Cleanup(Vec<PathBuf>);
@@ -355,8 +492,9 @@ pub async fn speech_generate(
         .app_data_dir()
         .map_err(|_| "Brak katalogu danych aplikacji")?
         .join("audio");
+    let provider = Realtime(service.repository.clone());
     service
-        .generate(root, broadcast_id, voice, &mut cancel, &Realtime)
+        .generate(root, broadcast_id, voice, &mut cancel, &provider)
         .await
 }
 #[tauri::command]
@@ -575,18 +713,118 @@ mod tests {
         assert!(!root.exists());
     }
     #[tokio::test]
-    async fn sqlite_failure_removes_published_and_partial_files() {
+    async fn sqlite_failure_preserves_verified_wav_and_reindexes_without_paid_retry() {
         let (service, root) = setup();
         service.repository.with_database(|db|db.execute_batch("CREATE TRIGGER fail_speech BEFORE INSERT ON speech_assets BEGIN SELECT RAISE(ABORT,'test'); END;").map_err(|e|e.to_string())).unwrap();
-        let (_guard, mut cancel) = service.start("failure").unwrap();
+        let (guard, mut cancel) = service.start("failure").unwrap();
+        let fake = Fake::new();
         assert!(
             service
                 .clone()
-                .generate(root.clone(), "1".into(), None, &mut cancel, &Fake::new())
+                .generate(root.clone(), "1".into(), None, &mut cancel, &fake)
                 .await
                 .is_err()
         );
-        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 2);
+        drop(guard);
+        service
+            .repository
+            .with_database(|db| {
+                db.execute_batch("DROP TRIGGER fail_speech").unwrap();
+                Ok(())
+            })
+            .unwrap();
+        let (_guard, mut cancel) = service.start("resume").unwrap();
+        let recovered = service
+            .clone()
+            .generate(root.clone(), "1".into(), None, &mut cancel, &fake)
+            .await
+            .unwrap();
+        assert!(recovered.cached);
+        assert_eq!(fake.calls.load(Ordering::SeqCst), 1);
+        clean(&root);
+    }
+    #[tokio::test]
+    async fn corrupt_wav_rebuilds_locally_when_all_verified_segments_survived() {
+        let (service, root) = setup();
+        let fake = Fake::new();
+        let (guard, mut cancel) = service.start("first").unwrap();
+        let first = service
+            .clone()
+            .generate(
+                root.clone(),
+                "1".into(),
+                Some("alloy".into()),
+                &mut cancel,
+                &fake,
+            )
+            .await
+            .unwrap();
+        drop(guard);
+        segment_cache::save(
+            &service.repository,
+            SCRIPT,
+            "alloy",
+            &(vec![0; 48000], SCRIPT.into()),
+        )
+        .unwrap();
+        std::fs::write(root.join(&first.resource_id), b"broken").unwrap();
+        let (_guard, mut cancel) = service.start("repair").unwrap();
+        let repaired = service
+            .clone()
+            .generate(
+                root.clone(),
+                "1".into(),
+                Some("alloy".into()),
+                &mut cancel,
+                &fake,
+            )
+            .await
+            .unwrap();
+        assert!(repaired.cached);
+        assert_eq!(fake.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            &std::fs::read(root.join(&repaired.resource_id)).unwrap()[..4],
+            b"RIFF"
+        );
+        assert!(std::fs::read_dir(&root).unwrap().any(|file| {
+            file.unwrap()
+                .file_name()
+                .to_string_lossy()
+                .contains(".corrupt-")
+        }));
+        clean(&root);
+    }
+    #[tokio::test]
+    async fn native_recovery_returns_verified_ready_audio_not_newer_incomplete_work() {
+        let (service, root) = setup();
+        let settings = service.repository.load().unwrap();
+        let source = serde_json::json!({"id":"1","provider":"fixture","title":SCRIPT,"url":"https://example.org/news","source":"Fixture","sourceUrl":null,"publishedAt":null,"rawPublicationDate":null,"descriptionHtml":null,"guid":null,"feedUrl":"https://example.org/rss","fetchedAt":"2026-11-16T00:00:00Z","topics":["Nauka"]});
+        let draft = serde_json::json!({"title":"Nauka","segments":[{"topic":"Nauka","text":SCRIPT,"evidence":[{"source_id":"1","quote":SCRIPT}]}],"limitations":[],"insufficient_material":true});
+        service.repository.with_database(|db|{
+            db.execute("UPDATE content_broadcasts SET created_at=?1,draft_json=?2",params![chrono::Utc::now().to_rfc3339(),draft.to_string()]).unwrap();
+            db.execute("INSERT INTO news_articles(id,provider,canonical_url,metadata_json,first_seen_at) VALUES (1,'fixture','https://example.org/news',?1,0)",[source.to_string()]).unwrap();
+            db.execute("INSERT INTO content_sources VALUES (1,1,?1)",[source.to_string()]).unwrap();
+            db.execute("INSERT INTO pipeline_preparations VALUES (1,?1)",[crate::recovery::settings_key(&settings)]).unwrap();Ok(())
+        }).unwrap();
+        let (_guard, mut cancel) = service.start("verified").unwrap();
+        let fake = Fake::new();
+        service
+            .clone()
+            .generate(root.clone(), "1".into(), None, &mut cancel, &fake)
+            .await
+            .unwrap();
+        service.repository.with_database(|db|{
+            db.execute("INSERT INTO content_broadcasts SELECT 2,created_at,title,model,text,estimated_duration_ms,topics_json,'broken' FROM content_broadcasts WHERE id=1",[]).unwrap();
+            db.execute("INSERT INTO pipeline_preparations VALUES (2,?1)",[crate::recovery::settings_key(&settings)]).unwrap();Ok(())
+        }).unwrap();
+        let recovered = crate::recovery::restore(&service.repository, &service, &root)
+            .unwrap()
+            .unwrap();
+        let wire = serde_json::to_value(recovered).unwrap();
+        assert_eq!(wire["script"]["id"], "1");
+        assert_eq!(wire["audio"]["cached"], true);
+        assert_eq!(fake.calls.load(Ordering::SeqCst), 1);
         clean(&root);
     }
     #[tokio::test]

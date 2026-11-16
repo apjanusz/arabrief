@@ -2,7 +2,7 @@ use super::format::{self, INSTRUCTIONS, MAX_PCM, MODEL, RATE};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::{
     net::TcpStream,
     sync::watch,
@@ -170,7 +170,37 @@ pub async fn synthesize(
     parts: &[String],
     voice: &str,
     cancel: &mut watch::Receiver<bool>,
+    repository: Arc<crate::settings::SettingsRepository>,
 ) -> Result<(Vec<u8>, String), String> {
+    super::check_cancel(cancel)?;
+    let repo = repository.clone();
+    let texts = parts.to_vec();
+    let selected_voice = voice.to_string();
+    let cached = tauri::async_runtime::spawn_blocking(move || {
+        texts
+            .iter()
+            .map(|text| super::segment_cache::load(&repo, text, &selected_voice))
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .await
+    .map_err(|_| "Błąd cache segmentów")??;
+    if cached.iter().all(Option::is_some) {
+        let mut pcm = Vec::new();
+        let mut transcripts = Vec::new();
+        for (audio, transcript) in cached.into_iter().flatten() {
+            if pcm.len() + audio.len() > MAX_PCM {
+                return Err("Nagranie przekracza 15 minut".into());
+            }
+            pcm.extend(audio);
+            transcripts.push(transcript);
+        }
+        eprintln!(
+            "[recovery] stage=speech action=reused_all_segments count={}",
+            parts.len()
+        );
+        return Ok((pcm, transcripts.join("\n\n")));
+    }
+    let mut connection_time = crate::performance::Span::new("realtime.connect_credentials_tls");
     let key = tauri::async_runtime::spawn_blocking(crate::credentials::read_openai_key)
         .await
         .map_err(|_| "Błąd magazynu klucza")??;
@@ -198,7 +228,10 @@ pub async fn synthesize(
             crate::openai_errors::classify(Some(response.status().as_u16()),&body,response.headers().get("x-request-id").and_then(|v|v.to_str().ok()),response.headers().get("retry-after").and_then(|v|v.to_str().ok())).user_message()
         } else { "Nie można połączyć z Realtime: błąd sieci/TLS lub protokołu WebSocket. Nie potwierdzono problemu z kluczem.".into() }
     })?;
+    connection_time.success();
+    drop(connection_time);
     let result = async {
+        let mut session_time = crate::performance::Span::new("realtime.session_setup");
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             if event(&mut socket, cancel, deadline).await?["type"] == "session.created" {
@@ -220,11 +253,22 @@ pub async fn synthesize(
                 break;
             }
         }
+        session_time.success();
+        drop(session_time);
         let mut pcm = Vec::new();
         let mut transcripts = Vec::new();
-        for part in parts {
+        for (index,part) in parts.iter().enumerate() {
+            let mut segment_time =
+                crate::performance::Span::new("realtime.segment_audio_transcript");
             if *cancel.borrow() {
                 return Err("Anulowano generowanie audio".into());
+            }
+            if let Some((audio,transcript))=&cached[index] {
+                if pcm.len()+audio.len()>MAX_PCM{return Err("Nagranie przekracza 15 minut".into());}
+                pcm.extend(audio);transcripts.push(transcript.clone());
+                segment_time.cached();
+                eprintln!("[recovery] stage=speech segment={index} action=reused_verified_pcm");
+                continue;
             }
             send(&mut socket, response(part)).await?;
             let deadline = Instant::now() + Duration::from_secs(120);
@@ -235,6 +279,13 @@ pub async fn synthesize(
                 }
             }
             let (audio, transcript) = collector.finish(part)?;
+            let repo=repository.clone();let text=part.clone();let voice=voice.to_string();let saved=(audio.clone(),transcript.clone());
+            match tauri::async_runtime::spawn_blocking(move||super::segment_cache::save(&repo,&text,&voice,&saved)).await {
+                Ok(Ok(()))=>eprintln!("[recovery] stage=speech segment={index} action=saved_verified_pcm"),
+                _=>eprintln!("[recovery] stage=speech segment={index} action=continued reason=segment_cache_write_failed"),
+            }
+            segment_time.success();
+            drop(segment_time);
             if pcm.len() + audio.len() > MAX_PCM {
                 return Err("Nagranie przekracza 15 minut".into());
             }
@@ -244,7 +295,11 @@ pub async fn synthesize(
         Ok((pcm, transcripts.join("\n\n")))
     }
     .await;
-    if result.is_err() {
+    if let Err(error) = &result {
+        // Errors here have already been sanitized by the protocol/API adapter.
+        eprintln!(
+            "[recovery] stage=speech action=deferred_preserved_verified_segments reason={error}"
+        );
         let _ = timeout(
             Duration::from_secs(1),
             send(&mut socket, json!({"type":"response.cancel"})),

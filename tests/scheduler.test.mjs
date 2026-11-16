@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AutomaticBroadcastScheduler } from "../src/modules/scheduler/AutomaticBroadcastScheduler.ts";
+import { NoUsableMaterial } from "../src/modules/scheduler/PreparationRecovery.ts";
 
 const settings = { intervalMs: 1000, topics: ["Nauka"], preferredAudioSource: { id: "music", name: "Music" }, openAiVoice: "alloy" };
 const script = { id: "script", sources: [{ id: "1" }, { id: "2" }] };
@@ -99,4 +100,36 @@ test("stop reports cancellation failure after waiting for work to settle",async(
   const stopping=f.scheduler.stop();synthesis.reject(Error("cancelled"));
   await assert.rejects(stopping,/cancel failed/);
   assert.equal(f.scheduler.getState().phase,"idle");assert.equal(f.timerCount(),0);
+});
+
+test("all rejected stories wait normally without an error toast and next cycle succeeds",async()=>{
+  let attempts=0;const f=fixture({content:{generate:async()=>{if(++attempts===1)throw new NoUsableMaterial("Wszystkie wiadomości były powtórzone.");return script;}}});
+  await f.scheduler.start(settings);await flush();
+  assert.equal(f.scheduler.getState().phase,"waiting");assert.equal(f.scheduler.getState().ready,false);
+  assert.ok(!f.events.some(event=>event.startsWith("error:")));
+  await f.advance(1000);assert.ok(f.events.includes("skipped:no_material"));
+  assert.equal(f.scheduler.getState().cycle,2);assert.equal(f.scheduler.getState().ready,true);
+  await f.advance(1000);assert.ok(f.events.includes("played"));await f.scheduler.stop();
+});
+
+test("late speech failure resumes same script next cycle and does not block future play",async()=>{
+  let scripts=0,speech=0;const f=fixture({content:{generate:async()=>{scripts++;return script;}},speech:{synthesize:async()=>{if(++speech===1)throw Error("TTS failed");return audio;},cancel:async()=>true}});
+  await f.scheduler.start(settings);await flush();assert.equal(f.scheduler.getState().phase,"error");
+  await f.advance(1000);assert.equal(f.scheduler.getState().ready,true);assert.equal(scripts,1);
+  await f.advance(1000);assert.ok(f.events.includes("played"));await f.scheduler.stop();
+});
+
+test("recovered complete recording bypasses failed services without schedule error",async()=>{
+  const f=fixture({recovery:{restore:async()=>({script,audio}),claim:async()=>{},complete:async()=>{}},news:{fetch:async()=>{throw Error("RSS must not run");},markUsed:async()=>{}}});
+  await f.scheduler.start(settings);await flush();assert.equal(f.scheduler.getState().ready,true);
+  f.ports.news.fetch=async()=>({items:[],topics:[]});
+  await f.advance(1000);assert.ok(f.events.includes("played"));assert.ok(!f.events.some(event=>event.startsWith("error:")));
+  await f.scheduler.stop();
+});
+
+test("history write failure after playback is not a schedule failure",async()=>{
+  const f=fixture({news:{fetch:async()=>({items:[{id:"1"}]}),markUsed:async()=>{throw Error("history unavailable");}}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);
+  assert.ok(f.events.includes("played"));assert.ok(!f.events.some(event=>event.startsWith("error:")));
+  assert.equal(f.scheduler.getState().cycle,2);await f.scheduler.stop();
 });

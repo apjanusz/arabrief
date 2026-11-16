@@ -176,23 +176,26 @@ fn read_list(db: &Connection, sql: &str) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
-    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
-    if version > 5 {
-        return Err(rusqlite::Error::InvalidParameterName(
-            "Nowsza wersja bazy danych".into(),
-        ));
-    }
-    for (index, sql) in [
+    // Preserve the released schema history even when optional article features are reverted.
+    let migrations = [
         include_str!("../migrations/001_settings.sql"),
         include_str!("../migrations/002_news_preferences.sql"),
         include_str!("../migrations/003_news_history.sql"),
         include_str!("../migrations/004_content_generation.sql"),
         include_str!("../migrations/005_speech_assets.sql"),
-    ]
-    .iter()
-    .enumerate()
-    {
+        include_str!("../migrations/006_article_materials.sql"),
+        include_str!("../migrations/007_article_history.sql"),
+        include_str!("../migrations/008_pipeline_recovery.sql"),
+    ];
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    if version > migrations.len() as u32 {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Baza ma wersję {version}, aplikacja obsługuje maksymalnie {}. Uruchom zgodną wersję aplikacji; dane pozostawiono bez zmian.",
+            migrations.len()
+        )));
+    }
+    for (index, sql) in migrations.iter().enumerate() {
         if version < (index + 1) as u32 {
             tx.execute_batch(sql)?;
             tx.pragma_update(None, "user_version", (index + 1) as u32)?;
@@ -248,6 +251,127 @@ pub fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn schema(db: &Connection) -> Vec<(String, String, Option<String>)> {
+        db.prepare("SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name")
+            .unwrap().query_map([], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap()
+            .collect::<rusqlite::Result<_>>().unwrap()
+    }
+    fn history_counts(db: &Connection) -> Vec<i64> {
+        [
+            "news_articles",
+            "news_usage",
+            "content_broadcasts",
+            "content_sources",
+            "speech_assets",
+            "article_materials",
+            "article_history",
+        ]
+        .iter()
+        .map(|table| {
+            db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+                .unwrap()
+        })
+        .collect()
+    }
+    #[test]
+    fn current_schema_reopens_without_rewriting_settings_or_history() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        let mut settings = repo.load().unwrap();
+        settings.topics = vec!["Nauka".into()];
+        settings.interval_ms = 3600000;
+        repo.save(&settings).unwrap();
+        repo.with_database(|db| {
+            db.execute("INSERT INTO content_broadcasts VALUES (1,'now','Fixture','fixture','Zapisany scenariusz',1000,'[]','{}')",[]).unwrap();
+            let before_schema=schema(db);let before_counts=history_counts(db);
+            migrate(db).unwrap();migrate(db).unwrap();
+            assert_eq!(schema(db),before_schema);assert_eq!(history_counts(db),before_counts);
+            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),8);
+            assert_eq!(db.query_row("SELECT text FROM content_broadcasts WHERE id=1",[],|r|r.get::<_,String>(0)).unwrap(),"Zapisany scenariusz");
+            Ok(())
+        }).unwrap();
+        assert_eq!(repo.load().unwrap(), settings);
+    }
+    #[test]
+    fn v6_upgrades_without_removing_article_materials() {
+        let mut db = Connection::open_in_memory().unwrap();
+        for sql in [
+            include_str!("../migrations/001_settings.sql"),
+            include_str!("../migrations/002_news_preferences.sql"),
+            include_str!("../migrations/003_news_history.sql"),
+            include_str!("../migrations/004_content_generation.sql"),
+            include_str!("../migrations/005_speech_assets.sql"),
+            include_str!("../migrations/006_article_materials.sql"),
+        ] {
+            db.execute_batch(sql).unwrap();
+        }
+        db.pragma_update(None, "user_version", 6).unwrap();
+        db.pragma_update(None, "foreign_keys", "ON").unwrap();
+        db.execute("INSERT INTO news_articles(id,provider,canonical_url,metadata_json,first_seen_at) VALUES (1,'fixture','https://example.org','{}',0)",[]).unwrap();
+        db.execute("INSERT INTO article_materials(article_id,title,status,fetched_at) VALUES (1,'Zachowany materiał','skipped',0)",[]).unwrap();
+        migrate(&mut db).unwrap();
+        assert_eq!(
+            db.query_row("SELECT title FROM article_materials", [], |r| r
+                .get::<_, String>(0))
+                .unwrap(),
+            "Zachowany materiał"
+        );
+        assert_eq!(
+            db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                .unwrap(),
+            8
+        );
+    }
+    #[test]
+    #[ignore = "explicit read-only verification of a local database, using a temporary SQLite snapshot"]
+    fn verify_existing_database_on_copy() {
+        let source_path =
+            std::env::var_os("ARABRIEF_COMPAT_DATABASE").expect("set ARABRIEF_COMPAT_DATABASE");
+        let source = Connection::open_with_flags(
+            Path::new(&source_path),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let target = std::env::temp_dir().join(format!(
+            "arabrief-compat-{}-{}.sqlite3",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap()
+        ));
+        // SQLite makes a consistent snapshot; the source connection is read-only.
+        source
+            .execute("VACUUM INTO ?1", [target.to_string_lossy().as_ref()])
+            .unwrap();
+        drop(source);
+        {
+            let before = Connection::open(&target).unwrap();
+            let before_schema = schema(&before);
+            let before_counts = history_counts(&before);
+            let before_settings = SettingsRepository(Mutex::new(before)).load().unwrap();
+            let repo = SettingsRepository::open(&target).unwrap();
+            assert_eq!(repo.load().unwrap(), before_settings);
+            repo.save(&before_settings).unwrap();
+            assert_eq!(repo.load().unwrap(), before_settings);
+            repo.with_database(|db| {
+                let after_schema = schema(db);
+                assert!(
+                    before_schema
+                        .iter()
+                        .all(|entry| after_schema.contains(entry))
+                );
+                assert_eq!(history_counts(db), before_counts);
+                assert_eq!(
+                    db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                        .unwrap(),
+                    8
+                );
+                Ok(())
+            })
+            .unwrap();
+        }
+        std::fs::remove_file(target).unwrap();
+        println!(
+            "Verified: repository upgrades, settings roundtrip and history preserved on copy; original database read-only."
+        );
+    }
     #[test]
     fn defaults_roundtrip_and_invalid_save_preserves_data() {
         let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();

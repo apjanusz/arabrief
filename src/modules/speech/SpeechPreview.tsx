@@ -22,7 +22,7 @@ export function SpeechPreview({ broadcastId, provider, player, settings }: { bro
     if (job.current) return;
     cancelled.current = false;
     const id = crypto.randomUUID(); job.current = id;
-    setBusy(true); setAsset(null);
+    setBusy(true);
     try {
       const current = await settings.load(); await settings.save({ ...current, openAiVoice: voice });
       if (cancelled.current) { notifications.info("Anulowano generowanie audio."); return; }

@@ -46,6 +46,9 @@ pub fn run() {
             news::news_fetch,
             news::news_mark_used,
             content::content_generate,
+            recovery::broadcast_restore,
+            recovery::broadcast_claim,
+            recovery::broadcast_complete,
             speech::speech_generate,
             speech::speech_cancel
         ])
@@ -80,6 +83,9 @@ mod content;
 mod credentials;
 mod news;
 mod openai_errors;
+mod performance;
 mod player;
+mod recovery;
 mod settings;
 mod speech;
+mod work_queue;

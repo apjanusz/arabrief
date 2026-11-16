@@ -6,6 +6,8 @@ import type { SpeechProvider } from "../speech/SpeechProvider";
 import { ManualBroadcastRunner } from "./ManualBroadcastRunner.ts";
 import type { PreparedBroadcast, PreparationStage } from "./ManualBroadcastRunner";
 import type { BroadcastScheduler } from "./BroadcastScheduler";
+import { NoUsableMaterial } from "./PreparationRecovery.ts";
+import type { PreparationRecovery } from "./PreparationRecovery";
 
 interface Clock {
   mono(): number;
@@ -14,13 +16,16 @@ interface Clock {
   clear(handle: ReturnType<typeof setTimeout>): void;
 }
 interface Ports {
+  recovery?: PreparationRecovery;
+  onRecovered?(message: string): void;
+  onConsumed?(broadcast: PreparedBroadcast): void;
   news: NewsProvider; content: ContentGenerator; speech: SpeechProvider; player: AudioPlayer;
   makeJobId(): string;
   onStage(stage: PreparationStage): void;
   onNews(result: NewsResult): void;
   onReady(broadcast: PreparedBroadcast): void;
   onPlayed(broadcast: PreparedBroadcast): void;
-  onSkipped(reason: "not_ready" | "sleep" | "source_unavailable"): void;
+  onSkipped(reason: "not_ready" | "sleep" | "source_unavailable" | "no_material"): void;
   onError(message: string): void;
   log(event: string): void;
   sourceAvailable(sessionId: string): Promise<boolean>;
@@ -66,6 +71,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
   private statusPoll: ReturnType<typeof setInterval> | null = null;
   private polling = false;
   private ticking = false;
+  private noMaterial = false;
   constructor(ports: Ports) {
     this.ports = ports;
     this.clock = ports.clock ?? browserClock;
@@ -104,6 +110,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     if (!settings) return;
     const generation = ++this.generation;
     this.prepared = seed ?? null;
+    this.noMaterial = false;
     this.dueMono = this.clock.mono() + settings.intervalMs;
     this.dueWall = this.clock.wall() + settings.intervalMs;
     this.observedMono = this.clock.mono(); this.observedWall = this.clock.wall();
@@ -117,6 +124,12 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     }).catch(cause => {
       if (generation !== this.generation || !this.settings) return;
       const message = errorMessage(cause);
+      if(cause instanceof NoUsableMaterial) {
+        this.noMaterial=true;
+        this.emit({phase:"waiting",message,ready:false});
+        this.log("preparation_no_usable_material_next_cycle_pending");
+        return;
+      }
       this.emit({ phase: "error", message, ready: false });
       this.log("preparation_failed");
       this.ports.onError(message);
@@ -148,7 +161,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     this.emit({ remainingMs: remaining });
     if (remaining > 0) { this.arm(); return; }
     this.clearTimer();
-    if (!this.prepared) { await this.skip("not_ready"); return; }
+    if (!this.prepared) { await this.skip(this.noMaterial ? "no_material" : "not_ready"); return; }
     const prepared = this.prepared;
     this.prepared = null;
     this.playback = this.play(prepared, settings);
@@ -157,7 +170,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     if (this.settings && !this.stopping) this.beginCycle();
     } finally { this.ticking = false; }
   }
-  private async skip(reason: "not_ready" | "sleep") {
+  private async skip(reason: "not_ready" | "sleep" | "no_material") {
     this.log(`cycle_skipped_${reason}`);
     ++this.generation;
     this.prepared = null;

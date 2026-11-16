@@ -37,6 +37,11 @@ osobnego pliku konfiguracji Tailwind.
 
 ## Struktura i odpowiedzialności
 
+Pomiary wydajności i porównanie kolejki pobierania opisuje
+[docs/performance.md](docs/performance.md). W terminalu `npm run tauri dev` wpisy
+`[perf]` podają nazwę operacji, czas monotoniczny w ms i wynik (`ok`, `cache_hit`
+lub `error_or_cancelled`). Logowane są etapy, a nie fragmenty PCM czy treść promptów.
+
 | Lokalizacja | Odpowiedzialność |
 | --- | --- |
 | `src/App.tsx`, `src/App.css` | Ekrany desktopowe i style Tailwind |
@@ -222,6 +227,14 @@ Nie zawiera klucza API. Migracje w `src-tauri/migrations` są stosowane w transa
 IMMEDIATE, wersjonowane przez PRAGMA user_version. Nowszy nieobsługiwany schemat,
 błąd migracji lub niepoprawne dane przerywają inicjalizację zamiast resetować ustawienia.
 
+Obsługiwany schemat SQLite ma wersję 8. Zachowane migracje 006–007 odpowiadają
+za dodatkowe tabele materiałów artykułów; pozostają w historii schematu także
+po cofnięciu kodu korzystającego z tych tabel. Baza w wersji 7 przechodzi migrację 008 bez
+ponownego wykonywania migracji i bez obniżania jej numeru. Git stash ani cofnięcie
+kodu nie cofają pliku bazy w AppData. Nie usuwaj bazy w celu naprawy niezgodności:
+uruchom kod obsługujący jej schemat. Nieznane przyszłe wersje nadal są odrzucane,
+z informacją o numerze bazy i maksymalnej obsługiwanej wersji.
+
 | Pole DTO | Domyślna wartość | Walidacja |
 | --- | --- | --- |
 | preferredAudioSource | null | para id/nazwa, limity 4096/256 bajtów |
@@ -237,7 +250,7 @@ błąd migracji lub niepoprawne dane przerywają inicjalizację zamiast resetowa
 
 `settings_load()` zwraca kompletny AppSettings; `settings_save({ settings })` zapisuje
 pełny, zwalidowany snapshot. Numer wersji DTO (version: 1) jest niezależny od wersji
-schematu bazy (obecnie 5). Nieznane pola są odrzucane, więc apiKey nie może zostać
+schematu bazy (obecnie 8). Nieznane pola są odrzucane, więc apiKey nie może zostać
 przemycone jako pole ustawień. Tematy i adresy są w osobnych tabelach; zapis całego
 snapshotu jest atomowy. Kontrakty i adapter TS: `src/platform/tauri/settings.ts`.
 
@@ -356,7 +369,8 @@ z istniejącego reqwest, a klucz pobierany jest przez natywną funkcję credenti
 (nie komendę IPC). Authorization ma oznaczenie sensitive; klucz i bufor Bearer są
 Zeroizing. Klucz nie jest częścią promptu, JSON requestu, SQLite, logów ani odpowiedzi UI.
 
-`content_generate({ articleIds })` przyjmuje od 2 do 8 różnych identyfikatorów NewsProvider.
+`content_generate({ articleIds })` przyjmuje od 1 do 8 identyfikatorów NewsProvider.
+Powtórzone ID są scalane; brakujące, zarezerwowane i uszkodzone wpisy są pomijane.
 Nie przyjmuje dowolnych tekstów, URL-i ani klucza od webview. Rust pobiera snapshoty
 RSS z bazy i sprawdza, czy nie były wcześniej użyte w audycji ani zapisanym scenariuszu.
 Opis każdego źródła wysyłany do modelu ma limit 4000 znaków; pełne metadane nadal są
@@ -368,16 +382,18 @@ Zapytanie: POST https://api.openai.com/v1/responses, instructions + input,
 text.format=json_schema, strict=true, store=false, max_output_tokens=6000.
 Nie ma narzędzi, wyszukiwania internetu, previous_response_id ani dowolnego endpointu.
 Timeout całości 90 s, połączenia 10 s, limit odpowiedzi 512 KiB. Bez automatycznych
-ponowień płatnych żądań. HTTP 401/403, 429, błędy modelu, odmowa, incomplete i wadliwy
-JSON kończą operację czytelnym błędem, bez zapisywania częściowego scenariusza i bez
-ujawniania surowych odpowiedzi błędów API. Jedno generowanie naraz w procesie.
+ponowień płatnych żądań. HTTP 401/403, 429, błędy modelu, odmowa i nieczytelna koperta
+JSON kończą próbę; gotowa niewykorzystana audycja pozostaje dostępna jako fallback.
+Kompletny JSON odpowiedzi incomplete może dostarczyć poprawne segmenty. Wadliwy segment
+nie niszczy poprawnych sąsiadów. Surowe odpowiedzi błędów API nie trafiają do UI/logów.
+Jedno generowanie naraz w procesie.
 
 Scenariusz domyślnie celuje w 280–420 słów (2–3 minuty przy 140 słowach/min).
 Zakres pochodzi z broadcastMinDurationMs/broadcastMaxDurationMs. Przy skąpych danych
 powinien być krótszy, oznaczony insufficient_material i opisany w limitations.
 Nie wyciągamy treści artykułu z samego nagłówka i nie uzupełniamy długości faktami
 z wiedzy modelu. estimatedDurationMs to oszacowanie z liczby słów, nie pomiar TTS.
-Znaczne przekroczenie górnej długości (ponad 120% celu) jest odrzucane.
+Przy przekroczeniu 120% górnego celu usuwane są całe nadmiarowe wiadomości.
 
 Ustrukturyzowany wynik BroadcastScript zawiera id, createdAt (UTC), model, title,
 text, language=pl, topics, estimatedDurationMs, docelowy zakres czasu, draft i sources.
@@ -386,10 +402,12 @@ oraz insufficient_material. Wewnętrzne pola draft/evidence zachowują nazwy sch
 OpenAI w snake_case; DTO aplikacji i snapshoty NewsItem używają camelCase.
 URL-e i metadane sources pochodzą wyłącznie z bazy, nie z odpowiedzi modelu.
 
-Walidacja wymaga co najmniej dwóch powiązanych źródeł, identyfikatorów z przekazanego
-zbioru i dosłownych cytatów obecnych w dostarczonym tytule/opisie. Odrzuca nieznane
-źródła, zmyślone cytaty, brak materiału, powtórzone cytaty z historii i tekst zawarty
-w ostatnich scenariuszach. Prompt nakazuje przypisać każdą istotną informację do
+Walidacja sprawdza identyfikatory z przekazanego zbioru i dosłowne cytaty obecne
+w dostarczonym tytule/opisie. Usuwa pojedyncze wiadomości z nieznanym źródłem,
+zmyślonym cytatem lub powtórzoną narracją. Sam współdzielony cytat nie jest powodem
+odrzucenia; uwzględniamy też poprzedni tekst i obecność nowych dowodów. Wiadomości
+porządkowane są lokalnie od najnowszej publikacji; nie ma ponownego wywołania modelu.
+Jedna poprawna wiadomość wystarcza do krótszej audycji. Prompt nakazuje przypisać każdą istotną informację do
 potwierdzającego cytatu i traktować RSS jako niezaufane dane, nigdy polecenia.
 Istnienie cytatu nie dowodzi automatycznie, że każda parafraza modelu z niego wynika:
 to walidacja pochodzenia, nie niezależny weryfikator prawdziwości lub semantyki.
@@ -398,7 +416,7 @@ W podglądzie można sprawdzić cytaty dla każdego segmentu przed przyszłym od
 Migracja `004_content_generation.sql` dodaje text_model oraz content_broadcasts,
 content_sources i content_evidence. Tekst, data, tematy, model, ograniczenia i snapshoty
 wykorzystanych źródeł są zapisywane w jednej transakcji. Nie zapisujemy chain-of-thought.
-Ponowne użycie tych samych artykułów i cytatów jest blokowane przez historię całej
+Ponowne użycie tych samych artykułów jest blokowane przez historię całej
 bazy; pięć ostatnich scenariuszy jest dodatkowo przekazywanych modelowi jako kontekst
 przeciw powtarzaniu informacji innymi słowami. To ogranicza, ale nie gwarantuje wykrycia
 semantycznych powtórzeń tej samej informacji w innych źródłach, zwłaszcza starszych.
@@ -411,8 +429,8 @@ scenariuszem; po wyczerpaniu dostępnych materiałów należy pobrać nowe wiado
 Test ręczny: zapisz klucz w Windows Credential Manager, pobierz RSS dla kilku tematów,
 sprawdź materiały i model, kliknij „Wygeneruj testową audycję”. Przycisk wysyła do
 OpenAI materiały RSS i kontekst poprzednich scenariuszy oraz może naliczyć koszt API.
-UI wyświetla tekst, źródła, cytaty, ograniczenia i orientacyjny czas. Nie ma TTS ani
-automatycznego harmonogramu. Testy automatyczne używają fikcyjnego generatora i
+UI wyświetla tekst, źródła, cytaty, ograniczenia i orientacyjny czas. TTS i harmonogram
+opisano poniżej. Testy automatyczne używają fikcyjnego generatora i
 odpowiedzi API, bez rzeczywistego klucza, sieci OpenAI lub kosztów. Sprawdzają kontrakt
 Responses, błędy/refusal/incomplete, źródła, cytaty, powtórzenia i atomowość zapisu.
 
@@ -479,25 +497,31 @@ pojedynczego segmentu 8 MiB. Plik powstaje dopiero po pozytywnej weryfikacji ca�
 W katalogu app_data_dir()/audio zapisujemy plik .part, synchronizujemy go i publikujemy
 jako speech-{SHA256}.wav przez dowiązanie twarde w tym samym katalogu (bez nadpisywania
 istniejącego pliku, wymaga obsługującego je systemu plików, np. NTFS). Po zapisie
-SQLite usuwany jest .part. Błędy i anulowanie usuwają pliki utworzone przez zadanie;
-błąd SQLite usuwa również opublikowany WAV. Awaria procesu może pozostawić osierocony
-plik: nie jest on automatycznie używany ani nadpisywany płatną generacją.
+SQLite usuwany jest .part. Opublikowany, kompletny WAV pozostaje po późniejszym błędzie
+lub anulowaniu. Towarzyszy mu dziennik .wav.json z hashem i zweryfikowaną transkrypcją.
+Po awarii zapisu SQLite można lokalnie odbudować indeks po ponownej kontroli formatu,
+hasha i transkrypcji, bez wywołania API. Osierocony plik bez poprawnego dziennika
+nie jest uznawany za bezpieczne nagranie.
 
 Migracja 005_speech_assets.sql zapisuje hash cache, identyfikator scenariusza,
 model, głos, lokalną ścieżkę i resourceId, hash pliku, datę, rzeczywistą długość,
 format, liczbę segmentów, transkrypcję oraz wynik weryfikacji. Cache SHA256 zależy
 od dokładnego tekstu, głosu, modelu, formatu, instrukcji i wersji segmentacji.
 Trafienie sprawdza hash pliku i transkrypcję, działa bez klucza/API i po restarcie.
-Uszkodzony/brakujący plik z istniejącym wpisem cache zwraca błąd zamiast automatycznie
-uruchamiać płatną generację. Zmiana głosu tworzy inny cache.
+Uszkodzony/brakujący plik można odbudować lokalnie, jeśli zachowały się wszystkie
+zweryfikowane części PCM; wadliwy WAV odkładany jest do pliku .corrupt-*. W przeciwnym
+razie nie odtwarzamy go i nie uruchamiamy automatycznie płatnej generacji całego WAV.
+Zmiana głosu tworzy inny cache.
 
 Połączenie i handshake mają limit 15 s, zapis 10 s, odpowiedź segmentu 120 s,
 a całe zadanie 15 min. Anulowanie wysyła response.cancel, gdy połączenie już istnieje,
 i zamyka WebSocket. Całkowity timeout zrywa połączenie. Po błędzie nie jest wysyłana
 nowa response.create, nie ma reconnectów, zmiany modelu ani płatnych retry.
 Normalne zamknięcie aplikacji anuluje syntezę i czeka na sprzątanie. Opłaty za już
-wygenerowaną część mogą pozostać; po anulowaniu/błędzie części nie są cache'owane,
-więc ponowna ręczna próba może ponownie naliczyć koszt zakończonych segmentów.
+wygenerowaną część mogą pozostać. Każda kompletna część z poprawną transkrypcją jest
+cache'owana w SQLite przez 24 godziny (hash PCM, tekst, głos, model i format).
+Następna próba lub cykl harmonogramu wznawia zapisany scenariusz, generując tylko
+brakujące części. Nie ma serii automatycznych płatnych retry w jednym zadaniu.
 
 Testy bez klucza i kosztów obejmują segmentację Unicode, składanie PCM/WAV, zdarzenia
 Realtime, incomplete i obce identyfikatory, dokładność transkrypcji, cache po restarcie,
@@ -624,3 +648,54 @@ Walidacja pól, niezapisane zmiany, etapy audycji, nieaktywne funkcje i informac
 o ograniczeniach materiałów pozostają przy odpowiednich kontrolkach. Wynik stanu
 klucza zachowuje trwałą etykietę diagnostyczną; potwierdzenia operacji trafiają do toastów.
 Kontrola magazynu powiadomień: `npm run test:notifications`.
+
+### Odzyskiwanie przygotowanej audycji i częściowe niepowodzenia
+
+Migracja `008_pipeline_recovery.sql` dodaje `pipeline_preparations`,
+`playback_receipts` i `speech_segments`. Nie resetuje historii ani ustawień.
+Warstwa domenowa używa portu `PreparationRecovery`; adapter Tauri udostępnia:
+
+- `broadcast_restore()` → `{ script, audio: SpeechAsset | null } | null`: najnowsza
+  bezpieczna, niewykorzystana audycja lub scenariusz oczekujący na TTS. Sprawdzamy
+  do 20 ostatnich zgodnych przygotowań z ostatnich 6 godzin. Zgodność obejmuje tematy,
+  model, głos, długość i preferencje materiałów; zmiana sesji muzycznej jej nie unieważnia.
+- `broadcast_claim({ broadcastId })`: transakcyjny zapis `attempted` przed play.
+  Druga próba tego samego odsłuchu jest blokowana również po restarcie aplikacji.
+- `broadcast_complete({ broadcastId })`: zapis `completed` po rzeczywistym końcu
+  natywnego play i przywróceniu muzyki. `news_mark_used` pozostaje historią emisji.
+
+Bezpieczny gotowy materiał ma pierwszeństwo przed kolejnym płatnym przygotowaniem.
+Przycisk przygotowania nowej audycji nadal próbuje stworzyć nową, zachowując poprzednią
+gotową jako fallback na wypadek niepowodzenia. Zapisany scenariusz wznawiany po błędzie
+TTS nie jest generowany ponownie. Anulowanie nie uruchamia fallbacku i nie usuwa
+poprawnie przygotowanej pracy. Po błędzie historii zakończony odsłuch pozostaje
+zabezpieczony przez receipt; nie zgłaszamy błędu całego harmonogramu.
+
+Niepełne audio nie jest odtwarzane. Obecne części TTS mogą dzielić jedną wiadomość,
+więc wycięcie losowej części mogłoby zmienić jej sens. Zachowujemy poprawne PCM,
+wznawiamy brakujące części przy kolejnej próbie, a jeśli istnieje pełny fallback,
+korzystamy z niego. Wszystkie części i cała transkrypcja nadal muszą przejść walidację.
+Po awarii procesu nie znamy faktycznej liczby usłyszanych próbek: konserwatywnie nie
+powtarzamy także audycji `attempted`, choć mogła nie zacząć grać. Rzeczywisty backend
+odtwarzania i odzyskiwanie głośności nie zostały zmienione.
+
+Brak nowych lub bezpiecznych wiadomości jest stanem `waiting`, `ready=false`,
+z czytelnym komunikatem. Termin bez nagrania pomijamy bez duckingu; kolejny cykl
+działa normalnie. Błąd autoryzacji, niedostępność API, brak możliwości spójnego zapisu
+SQLite lub błąd odtwarzania bez bezpiecznej alternatywy nadal są raportowane.
+`content_generate` odrzuca Promise obiektem `{ code, message }`, gdzie
+`no_usable_material` oznacza zwykły brak materiałów, a `content_failure` awarię usługi.
+
+Diagnostyka `[recovery]` zawiera `stage`, numer segmentu/źródła, `action` i `reason`,
+np. `unsupported_evidence`, `repeated_narration`, `reordered`, `reused_verified_pcm`,
+`reindexed_verified_wav`. `[perf]` zachowuje pomiary etapów. Logi nie zawierają klucza
+ani pełnych odpowiedzi API. Naprawa jednego segmentu odbywa się lokalnie; nie dodajemy
+wywołań AI w celu naprawy kolejności lub metadanych.
+
+Testy Rust oraz `test:manual`/`test:scheduler` obejmują wadliwe źródła i segmenty JSON,
+powtórki, aktualizacje liczb, kolejność, krótszy scenariusz, wyścig o źródło, brak
+materiałów, wznowienie TTS, odzyskiwanie WAV po błędzie SQLite, cache po awarii,
+anulowanie, wyłączność odsłuchu i kolejny cykl po niepowodzeniu. Testy używają lokalnych
+fixture i atrap dostawców, bez płatnych żądań. Walidacja cytatów i heurystyki podobieństwa
+nie zastępują niezależnego sprawdzania faktów; ta gałąź nadal dostarcza materiały RSS,
+nie pełne artykuły wydawców.

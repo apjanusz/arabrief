@@ -13,7 +13,7 @@ export function Dashboard({ app, navigate }: { app: Workspace; navigate: (page: 
   const configured = !!app.settings && !!app.source && !!app.settings.topics.length;
   const activeIndex = stages.findIndex(stage => stage === app.stage);
   const activeLabel = app.stopping ? "Zatrzymywanie audycji…" : app.scheduledActive && app.schedule.phase === "restoring" ? "Przywracamy głośność muzyki" : app.scheduledActive && app.schedule.phase === "ducking" ? "Delikatnie ściszamy muzykę" : app.scheduledActive && app.schedule.phase === "playing" ? "Audycja jest odtwarzana" : app.testing ? "Sprawdzamy wyjście dźwięku" : stageNames[app.stage];
-  const status = app.loading ? "Łączenie ze studiem" : !app.settings ? "Studio niepołączone" : app.scheduledActive ? app.schedule.phase === "waiting" ? "Audycja gotowa. Czekamy na termin." : app.schedule.phase === "error" ? "Przygotowanie nie powiodło się. Termin zostanie pominięty." : activeLabel : app.busy ? activeLabel : app.ready ? "Nagranie czeka na odsłuch" : "Gotowe na Twoje tematy";
+  const status = app.loading ? "Łączenie ze studiem" : !app.settings ? "Studio niepołączone" : app.scheduledActive ? app.schedule.phase === "waiting" ? app.schedule.ready ? "Audycja gotowa. Czekamy na termin." : app.schedule.message ?? "Czekamy na nowe materiały." : app.schedule.phase === "error" ? "Przygotowanie nie powiodło się. Termin zostanie pominięty." : activeLabel : app.busy ? activeLabel : app.ready ? "Nagranie czeka na odsłuch" : "Gotowe na Twoje tematy";
   return <>
     <div className="studio-grid">
       <section className={`hero panel ${app.busy ? "hero-active" : ""}`}>
@@ -39,7 +39,7 @@ export function Dashboard({ app, navigate }: { app: Workspace; navigate: (page: 
           {app.source && <p className="source-level"><span className={`status-dot ${app.source.state==="active"?"":"status-off"}`}/>{app.source.state==="active"?"Sesja aktywna":"Sesja nieaktywna"} · <strong>{Math.round(app.source.volume * 100)}%</strong></p>}
           <button className="text-button" onClick={() => navigate("settings")}>{app.source ? "Zmień źródło" : "Przejdź do ustawień"}<Icon name="arrow" size={16}/></button>
         </section>
-        <section className="schedule-note"><Icon name="clock" size={20}/><div><h3>{app.scheduledActive ? "Do następnej audycji" : "Twój rytm audycji"}</h3>{app.scheduledActive && <strong className="schedule-countdown" role="timer">{countdown(app.schedule.remainingMs)}</strong>}<p>{app.scheduledActive ? `Interwał ${app.settings!.intervalMs / 60000} min · ${app.schedule.ready ? "nagranie gotowe" : app.schedule.phase === "error" ? "brak gotowego nagrania" : "trwa przygotowanie"}` : `Po uruchomieniu pierwsza audycja za ${app.settings ? app.settings.intervalMs / 60000 : 30} min. Potem każdy pełny interwał liczony jest od końca odsłuchu.`}</p></div></section>
+        <section className="schedule-note"><Icon name="clock" size={20}/><div><h3>{app.scheduledActive ? "Do następnej audycji" : "Twój rytm audycji"}</h3>{app.scheduledActive && <strong className="schedule-countdown" role="timer">{countdown(app.schedule.remainingMs)}</strong>}<p>{app.scheduledActive ? `Interwał ${app.settings!.intervalMs / 60000} min · ${app.schedule.ready ? "nagranie gotowe" : app.schedule.phase === "error" || app.schedule.phase === "waiting" ? "brak gotowego nagrania" : "trwa przygotowanie"}` : `Po uruchomieniu pierwsza audycja za ${app.settings ? app.settings.intervalMs / 60000 : 30} min. Potem każdy pełny interwał liczony jest od końca odsłuchu.`}</p></div></section>
       </aside>
     </div>
 

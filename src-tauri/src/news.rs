@@ -67,6 +67,8 @@ impl NewsProvider for GoogleNews {
 }
 impl GoogleNews {
     fn fetch_url(&self, topic: &str, url: Url) -> Result<Vec<NewsItem>, FetchError> {
+        let mut total = crate::performance::Span::new("rss.topic");
+        let mut http = crate::performance::Span::new("rss.http");
         let failure = |message: String| FetchError {
             message,
             retry_after: None,
@@ -110,7 +112,15 @@ impl GoogleNews {
         if bytes.len() > 2 * 1024 * 1024 {
             return Err(failure("RSS przekracza limit 2 MiB".into()));
         }
-        parse(&bytes, url.as_str(), topic).map_err(failure)
+        http.success();
+        drop(http);
+        let result = crate::performance::measure("rss.parse", || {
+            parse(&bytes, url.as_str(), topic).map_err(failure)
+        });
+        if result.is_ok() {
+            total.success();
+        }
+        result
     }
 }
 fn http_url(raw: &str) -> Option<String> {
@@ -236,7 +246,7 @@ impl NewsRepository {
                     let (id,json) = row.map_err(|e| e.to_string())?;
                     let id = id.to_string();
                     if let Some(existing) = items.iter_mut().find(|i| i.id == id) { existing.topics.push(topic.clone()); continue; }
-                    let mut item: NewsItem = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+                    let Ok(mut item)=serde_json::from_str::<NewsItem>(&json) else {eprintln!("[recovery] stage=news id={id} action=skipped reason=invalid_metadata");continue;};
                     item.id = id; item.topics = vec![topic.clone()]; items.push(item);
                 }
             }
@@ -334,6 +344,7 @@ impl NewsService {
         }
     }
     fn fetch(&self, topics: Vec<String>) -> Result<NewsResult, String> {
+        let mut total = crate::performance::Span::new("rss.total");
         let _gate = self
             .gate
             .try_lock()
@@ -342,36 +353,42 @@ impl NewsService {
         let provider = GoogleNews::new()?;
         let due = self.repository.claim(&topics, now())?;
         let mut fetched_topics = Vec::new();
-        for batch in due.chunks(4) {
-            let throttled = std::thread::scope(|scope| -> Result<bool, String> {
-                let mut throttled = false;
-                let handles: Vec<_> = batch
-                    .iter()
-                    .map(|topic| {
-                        let provider: &dyn NewsProvider = &provider;
-                        (topic, scope.spawn(move || provider.fetch_topic(topic)))
-                    })
-                    .collect();
-                for (topic, handle) in handles {
-                    fetched_topics.push(topic.clone());
-                    match handle.join().map_err(|_| "Błąd wątku RSS")? {
-                        Ok(items) => self.repository.save(topic, &items)?,
-                        Err(error) => {
-                            throttled |= error.retry_after.is_some();
-                            self.repository.error(topic, &error)?;
-                        }
-                    }
-                }
-                Ok(throttled)
-            })?;
-            // A provider-wide 429/503 prevents starting further chunks.
-            if throttled {
-                break;
+        let results = crate::performance::measure("rss.fetch_queue", || {
+            crate::work_queue::run(
+                &due,
+                4,
+                |topic| provider.fetch_topic(topic),
+                |result| {
+                    result
+                        .as_ref()
+                        .err()
+                        .is_some_and(|error| error.retry_after.is_some())
+                },
+            )
+        })?;
+        let mut persist = crate::performance::Span::new("rss.persist_sqlite");
+        for (index, result) in results {
+            let topic = &due[index];
+            fetched_topics.push(topic.clone());
+            match result {
+                Ok(items) => self.repository.save(topic, &items)?,
+                Err(error) => self.repository.error(topic, &error)?,
             }
         }
+        persist.success();
+        drop(persist);
+        let items = crate::performance::measure("rss.candidates_sqlite", || {
+            self.repository.candidates(&topics)
+        })?;
+        let statuses = self.repository.statuses(&topics)?;
+        if due.is_empty() {
+            total.cached();
+        } else {
+            total.success();
+        }
         Ok(NewsResult {
-            items: self.repository.candidates(&topics)?,
-            topics: self.repository.statuses(&topics)?,
+            items,
+            topics: statuses,
             fetched_topics,
         })
     }
@@ -478,6 +495,22 @@ mod tests {
                 .is_err()
         );
         assert_eq!(repo.candidates(&topics).unwrap().len(), 2); // atomic rollback
+    }
+    #[test]
+    fn corrupt_article_does_not_hide_healthy_candidates() {
+        let repo = repo();
+        repo.save("nauka", &fixture()).unwrap();
+        repo.0
+            .with_database(|db| {
+                db.execute(
+                    "UPDATE news_articles SET metadata_json='invalid' WHERE id=1",
+                    [],
+                )
+                .unwrap();
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 2);
     }
     #[test]
     fn persistent_rate_claims_and_provider_cooldown() {

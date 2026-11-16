@@ -10,8 +10,10 @@ import { ManualBroadcastRunner } from "../modules/scheduler/ManualBroadcastRunne
 import type { PreparationStage, PreparedBroadcast } from "../modules/scheduler/ManualBroadcastRunner";
 import { AutomaticBroadcastScheduler } from "../modules/scheduler/AutomaticBroadcastScheduler";
 import { notifications } from "./notifications/notifications";
+import { NoUsableMaterial } from "../modules/scheduler/PreparationRecovery";
+import type { PreparationRecovery } from "../modules/scheduler/PreparationRecovery";
 
-export interface Services { settings: SettingsRepository; audio: Pick<AudioController, "listSessions">; player: AudioPlayer; news: NewsProvider; content: ContentGenerator; speech: SpeechProvider }
+export interface Services { recovery: PreparationRecovery; settings: SettingsRepository; audio: Pick<AudioController, "listSessions">; player: AudioPlayer; news: NewsProvider; content: ContentGenerator; speech: SpeechProvider }
 const activePhases = ["preparing", "ducking", "playing", "restoring"];
 export const errorText = (cause: unknown): string => cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : String(cause);
 export function useAraBrief(services: Services) {
@@ -32,14 +34,18 @@ export function useAraBrief(services: Services) {
   const runner = useRef<ManualBroadcastRunner | null>(null);
   const scheduler = useRef<AutomaticBroadcastScheduler | null>(null);
   if (!runner.current) runner.current = new ManualBroadcastRunner({ ...services,
+    onRecovered: message => notifications.info(message, {key:"preparation-recovery"}),
+    onConsumed: () => setReady(null),
     onStage: setStage, onNews: setNews, onReady: setReady,
     onPlayed: broadcast => setLastPlayed({ broadcast, at: new Date().toISOString() }),
     makeJobId: () => crypto.randomUUID(),
   });
   if (!scheduler.current) scheduler.current = new AutomaticBroadcastScheduler({ ...services,
+    onRecovered: message => notifications.info(message, {key:"preparation-recovery"}),
+    onConsumed: () => setReady(null),
     onStage: setStage, onNews: setNews, onReady: setReady,
     onPlayed: broadcast => setLastPlayed({ broadcast, at: new Date().toISOString() }),
-    onSkipped: reason => notifications.warning(reason === "sleep" ? "Termin audycji minął podczas uśpienia. Rozpoczęto nowy interwał." : reason === "source_unavailable" ? "Wybrana sesja audio zniknęła. Wybierz źródło i uruchom harmonogram ponownie." : "Nagranie nie było gotowe na czas. Pominięto audycję i rozpoczęto nowy interwał."),
+    onSkipped: reason => reason === "no_material" ? notifications.info("Brak nowych, bezpiecznych wiadomości. Muzyka gra dalej; sprawdzimy materiały w kolejnym cyklu.", {key:"no-material"}) : notifications.warning(reason === "sleep" ? "Termin audycji minął podczas uśpienia. Rozpoczęto nowy interwał." : reason === "source_unavailable" ? "Wybrana sesja audio zniknęła. Wybierz źródło i uruchom harmonogram ponownie." : "Nagranie nie było gotowe na czas. Pominięto audycję i rozpoczęto nowy interwał."),
     onError: message => notifications.error(message, { title: "Błąd harmonogramu", key: "schedule-error" }),
     makeJobId: () => crypto.randomUUID(),
     sourceAvailable: async id => { const available = await services.audio.listSessions(); setSessions(available); return available.some(session => session.id === id); },
@@ -122,11 +128,12 @@ export function useAraBrief(services: Services) {
     setRunning(true);
     stopRequested.current = false;
     try {
-      await runner.current!.run(settings, prepareOnly, useReady ? ready ?? undefined : undefined);
+      await runner.current!.run(settings, prepareOnly, useReady ? ready ?? undefined : undefined, prepareOnly && !useReady);
       if (!stopRequested.current) notifications.success(prepareOnly ? "Audycja gotowa do odsłuchu." : "Audycja zakończona.");
     } catch (cause) {
       // The stop action owns the cancellation confirmation; native failures still surface.
-      if (!(stopRequested.current && errorText(cause).startsWith("Anulowano"))) notifications.error(errorText(cause), { key: "broadcast-error" });
+      if(cause instanceof NoUsableMaterial) notifications.info(cause.message, {key:"no-material"});
+      else if (!(stopRequested.current && errorText(cause).startsWith("Anulowano"))) notifications.error(errorText(cause), { key: "broadcast-error" });
     }
     finally { setRunning(false); setStopping(false); }
   }
