@@ -2,7 +2,7 @@
 name = "ara-brief"
 version = "0.1.0"
 description = "AraBrief desktop news broadcasts"
-authors = ["you"]
+authors = ["AraBrief"]
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -25,6 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "native-tls", "system-proxy"] }
 rss = { version = "2.1.2", default-features = false }
+dom_query = { version = "0.28.0", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 rusqlite = { version = "0.42.0", default-features = false, features = ["bundled"] }
 zeroize = "1"

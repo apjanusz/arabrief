@@ -1,4 +1,5 @@
 //! One grounded Responses request per article. No editorial/semantic AI passes.
+use super::article::{self, ArticleText};
 use super::*;
 use reqwest::Url;
 #[cfg(test)]
@@ -21,13 +22,52 @@ pub(super) trait ChapterGenerator: Sync {
         settings: &AppSettings,
     ) -> Result<(Chapter, Value), String>;
 }
-pub(super) struct OpenAiChapters;
-fn request(source: &NewsItem, settings: &AppSettings) -> Value {
-    json!({"model":settings.text_model,"store":false,"max_output_tokens":5000,
+pub(super) struct OpenAiChapters<'a>(pub &'a SettingsRepository);
+const MAX_CHAPTER_WORDS: usize = 100;
+fn limit_text(text: &str) -> Result<String, String> {
+    let words: Vec<_> = text.split_whitespace().take(MAX_CHAPTER_WORDS).collect();
+    let end = words
+        .iter()
+        .rposition(|word| {
+            let word = word.trim_end_matches(['"', '”', '’', '\'', ')', ']']);
+            if word.ends_with(['!', '?']) {
+                return true;
+            }
+            word.ends_with('.')
+                && ![
+                    "np.", "m.in.", "tj.", "tzn.", "dr.", "prof.", "inż.", "r.", "nr.", "ul.",
+                    "ok.", "godz.", "mln.", "mld.", "proc.", "itd.", "itp.",
+                ]
+                .contains(&word.to_lowercase().as_str())
+                && !(word.chars().count() == 2
+                    && word.chars().next().is_some_and(char::is_alphabetic))
+        })
+        .ok_or("Brak pełnego zdania w limicie 100 słów; pominięto rozdział")?;
+    Ok(words[..=end].join(" "))
+}
+#[cfg(test)]
+fn reserve_web_attempt(repository: &SettingsRepository, id: &str) -> Result<(), String> {
+    repository.with_database(|db| {
+        let changed = db
+            .execute(
+                "INSERT OR IGNORE INTO article_web_attempts VALUES (?1,unixepoch())",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+        if changed == 0 {
+            return Err(
+                "Wykorzystano jedyną próbę odczytu tego artykułu; bez ponawiania web_search".into(),
+            );
+        }
+        Ok(())
+    })
+}
+fn request(source: &NewsItem, settings: &AppSettings, material: &ArticleText) -> Value {
+    json!({"model":settings.text_model,"store":false,"max_output_tokens":5000,"max_tool_calls":1,
     "tools":[{"type":"web_search","external_web_access":true,"search_context_size":"high"}],
-    "tool_choice":"required","include":["web_search_call.action.sources"],
+    "tool_choice":"none",
     "instructions":include_str!("chapter_prompt.txt"),
-    "input":json!({"article":{"id":source.id,"title":source.title,"url":source.url,"publisher":source.source,"publisher_url":source.source_url,"published_at":source.published_at,"topics":source.topics},"min_words":settings.broadcast_min_duration_ms*140/180000,"max_words":settings.broadcast_max_duration_ms*140/180000}).to_string(),
+    "input":json!({"article":{"id":source.id,"title":material.title,"url":material.url,"google_news_url":source.url,"publisher":source.source,"published_at":source.published_at,"topics":source.topics,"body_text":material.body,"content_origin":"native_http_article"},"max_words":MAX_CHAPTER_WORDS}).to_string(),
     "text":{"format":{"type":"json_schema","name":"article_chapter","strict":true,"schema":{
         "type":"object","additionalProperties":false,"required":["article_read","article_url","title","text","quotes","limitations"],
         "properties":{"article_read":{"type":"boolean"},"article_url":{"type":"string"},"title":{"type":"string"},"text":{"type":"string"},"quotes":{"type":"array","items":{"type":"string"}},"limitations":{"type":"array","items":{"type":"string"}}}
@@ -69,16 +109,51 @@ fn same_article(source: &NewsItem, opened: &str) -> bool {
     (actual == expected || actual.ends_with(&format!(".{expected}")))
         && url.path().trim_matches('/').len() > 1
 }
+#[cfg(test)]
 fn parse(value: &Value, source: &NewsItem) -> Result<(Chapter, Value), String> {
+    parse_with_material(value, source, None)
+}
+fn parse_native(
+    value: &Value,
+    source: &NewsItem,
+    material: &ArticleText,
+) -> Result<(Chapter, Value), String> {
+    let mut resolved = source.clone();
+    resolved.url = material.url.clone();
+    parse_with_material(value, &resolved, Some(material))
+}
+fn parse_with_material(
+    value: &Value,
+    source: &NewsItem,
+    native: Option<&ArticleText>,
+) -> Result<(Chapter, Value), String> {
     if value["status"] != "completed" {
         return Err("Nieukończona odpowiedź rozdziału".into());
     }
     let output = value["output"]
         .as_array()
         .ok_or("Brak odpowiedzi rozdziału")?;
+    if output
+        .iter()
+        .filter(|item| item["type"] == "web_search_call")
+        .count()
+        > 1
+    {
+        return Err("Przekroczono limit jednego wywołania web_search".into());
+    }
     let mut text = String::new();
     let mut opened = Vec::new();
     let mut access = Vec::new();
+    if let Some(material) = native {
+        if output.iter().any(|item| item["type"] == "web_search_call") {
+            return Err(
+                "Nieoczekiwane wywołanie web_search mimo dostarczonej treści artykułu".into(),
+            );
+        }
+        opened.push(material.url.clone());
+        access
+            .push(json!({"url":material.url,"action":"native_http_article","status":"completed"}));
+    }
     for item in output {
         if item["type"] == "web_search_call"
             && item["status"] == "completed"
@@ -102,7 +177,7 @@ fn parse(value: &Value, source: &NewsItem) -> Result<(Chapter, Value), String> {
             }
         }
     }
-    let chapter: Chapter =
+    let mut chapter: Chapter =
         serde_json::from_str(&text).map_err(|_| "Nieprawidłowy JSON rozdziału")?;
     if !chapter.article_read
         || chapter.text.trim().chars().count() < 40
@@ -127,14 +202,34 @@ fn parse(value: &Value, source: &NewsItem) -> Result<(Chapter, Value), String> {
             "Nie potwierdzono odczytu treści wybranego artykułu; pominięto rozdział".into(),
         );
     }
+    if let Some(material) = native {
+        let body = article::normalized(&material.body);
+        let title = article::normalized(&source.title);
+        if chapter
+            .quotes
+            .iter()
+            .any(|quote| !body.contains(&article::normalized(quote)))
+            || !chapter
+                .quotes
+                .iter()
+                .any(|quote| !title.contains(&article::normalized(quote)))
+        {
+            return Err(
+                "Cytaty rozdziału nie potwierdzają odczytu dostarczonego tekstu artykułu".into(),
+            );
+        }
+    }
+    chapter.text = limit_text(&chapter.text)?;
     Ok((chapter, json!(access)))
 }
-impl ChapterGenerator for OpenAiChapters {
+impl ChapterGenerator for OpenAiChapters<'_> {
     fn chapter(
         &self,
         source: &NewsItem,
         settings: &AppSettings,
     ) -> Result<(Chapter, Value), String> {
+        // Read and persist before any paid request. Failure here costs no OpenAI call.
+        let material = article::load(self.0, source)?;
         let key = crate::credentials::read_openai_key()?;
         let bearer = Zeroizing::new(format!("Bearer {}", key.as_str()));
         let mut auth = HeaderValue::from_str(&bearer).map_err(|_| "Nieprawidłowy klucz OpenAI")?;
@@ -145,9 +240,9 @@ impl ChapterGenerator for OpenAiChapters {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|_| "Błąd klienta OpenAI")?;
-        let body =
-            serde_json::to_vec(&request(source, settings)).map_err(|_| "Błąd JSON żądania")?;
-        for attempt in 0..2 {
+        let body = serde_json::to_vec(&request(source, settings, &material))
+            .map_err(|_| "Błąd JSON żądania")?;
+        {
             let response = client
                 .post("https://api.openai.com/v1/responses")
                 .header(AUTHORIZATION, auth.clone())
@@ -162,18 +257,6 @@ impl ChapterGenerator for OpenAiChapters {
                     }
                 })?;
             let status = response.status();
-            if attempt == 0 && (status.as_u16() == 429 || status.is_server_error()) {
-                let delay = response
-                    .headers()
-                    .get(reqwest::header::RETRY_AFTER)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .unwrap_or(1);
-                if delay <= 2 {
-                    std::thread::sleep(Duration::from_secs(delay));
-                    continue;
-                }
-            }
             if !status.is_success() {
                 return Err(crate::openai_errors::response_error(response).user_message());
             }
@@ -187,9 +270,8 @@ impl ChapterGenerator for OpenAiChapters {
             }
             let value: Value =
                 serde_json::from_slice(&bytes).map_err(|_| "Nieprawidłowa odpowiedź OpenAI")?;
-            return parse(&value, source);
+            parse_native(&value, source, &material)
         }
-        Err("Wyczerpano próby rozdziału".into())
     }
 }
 
@@ -199,7 +281,7 @@ fn config_key(settings: &AppSettings) -> String {
         "{:x}",
         Sha256::digest(
             json!([
-                "article-chapter-v1",
+                "article-chapter-v2-native-body",
                 settings.text_model,
                 settings.broadcast_min_duration_ms,
                 settings.broadcast_max_duration_ms,
@@ -211,11 +293,17 @@ fn config_key(settings: &AppSettings) -> String {
     )
 }
 pub(crate) fn failed(repository: &SettingsRepository, id: &str, stage: &str) -> Result<(), String> {
-    eprintln!("[pipeline] stage={stage} article_id={id} action=deferred_or_skipped");
+    crate::performance::diagnostic!(
+        "[pipeline] stage={stage} article_id={id} action=deferred_or_skipped"
+    );
     repository.with_database(|db|db.execute("UPDATE article_queue SET failures=failures+1,retry_at=unixepoch()+60,skipped=(failures+1>=3) WHERE article_id=?1",[id]).map(|_|()).map_err(|e|e.to_string()))
 }
 pub(crate) fn systemic(error: &str) -> bool {
-    error.starts_with("OpenAI:") || error.to_lowercase().contains("klucz")
+    let lower = error.to_lowercase();
+    error.starts_with("OpenAI:")
+        || lower.contains("klucz")
+        || lower.contains("połączeni")
+        || lower.contains("timeout")
 }
 pub(crate) fn defer(repository: &SettingsRepository, id: &str) -> Result<(), String> {
     repository.with_database(|db| {
@@ -295,6 +383,7 @@ impl ContentService {
             )
         });
         let mut ready = Vec::new();
+        let mut read_errors = Vec::new();
         let mut resolved_urls = HashSet::new();
         let mut offset = 0;
         // At most nine candidates in one preparation; failures have a durable
@@ -316,13 +405,27 @@ impl ContentService {
                         && same_article(source, &chapter.article_url)
                         && access.as_array().is_some_and(|access| !access.is_empty())
                     {
-                        eprintln!(
+                        let mut chapter = chapter;
+                        chapter.text = match limit_text(&chapter.text) {
+                            Ok(text) => text,
+                            Err(error) => {
+                                failed(&self.repository, &source.id, "cached_chapter_word_limit")?;
+                                return Err(error);
+                            }
+                        };
+                        crate::performance::diagnostic!(
                             "[pipeline] stage=chapter article_id={} action=reused",
                             source.id
                         );
                         return Ok((chapter, access));
                     }
-                    let result = generator.chapter(source, &settings);
+                    let result =
+                        generator
+                            .chapter(source, &settings)
+                            .and_then(|(mut chapter, access)| {
+                                chapter.text = limit_text(&chapter.text)?;
+                                Ok((chapter, access))
+                            });
                     match result {
                         Ok((chapter, access)) => {
                             self.repository.with_database(|db| {
@@ -339,14 +442,14 @@ impl ContentService {
                                 .map(|_| ())
                                 .map_err(|e| e.to_string())
                             })?;
-                            eprintln!(
+                            crate::performance::diagnostic!(
                                 "[pipeline] stage=chapter article_id={} action=saved",
                                 source.id
                             );
                             Ok((chapter, access))
                         }
                         Err(error) => {
-                            eprintln!(
+                            crate::performance::diagnostic!(
                                 "[pipeline] stage=article_or_model article_id={} error={error}",
                                 source.id
                             );
@@ -366,6 +469,14 @@ impl ContentService {
                 .filter_map(|(_, result)| result.as_ref().err())
                 .find(|error| systemic(error))
                 .cloned();
+            for (_, result) in &results {
+                if let Err(error) = result
+                    && read_errors.len() < 3
+                    && !read_errors.contains(error)
+                {
+                    read_errors.push(error.clone());
+                }
+            }
             for (index, result) in results {
                 if let Ok((chapter, _)) = result {
                     let source = &sources[offset + index];
@@ -380,7 +491,7 @@ impl ContentService {
                             .map(|_| ())
                             .map_err(|e| e.to_string())
                         })?;
-                        eprintln!(
+                        crate::performance::diagnostic!(
                             "[pipeline] stage=dedup article_id={} action=exact_publisher_url_duplicate",
                             source.id
                         );
@@ -396,7 +507,10 @@ impl ContentService {
             offset = end;
         }
         if ready.is_empty() {
-            return Err("Brak bezpiecznych materiałów: nie uzyskano treści żadnego artykułu. Kolejka i zapisane rozdziały zostały zachowane.".into());
+            return Err(format!(
+                "Brak bezpiecznych materiałów: nie uzyskano treści żadnego artykułu. Kolejka i zapisane rozdziały zostały zachowane. Powody: {}",
+                read_errors.join("; ")
+            ));
         }
         self.save_chapters(ready, &settings)
     }

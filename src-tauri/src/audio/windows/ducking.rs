@@ -168,12 +168,19 @@ struct Active {
 }
 impl Active {
     fn restore(&mut self) -> std::result::Result<Outcome, String> {
-        fade::fade(
+        let result = fade::fade(
             &self.volume,
             &mut self.expected,
             self.original,
             std::time::Duration::from_millis(self.fade_in_ms as u64),
-        )
+        );
+        match result {
+            Ok(outcome) => Ok(outcome),
+            Err(error) => self
+                .volume
+                .restore_original()
+                .map_err(|retry| format!("{error}; restore retry: {retry}")),
+        }
     }
 }
 

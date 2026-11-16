@@ -74,6 +74,14 @@ test("native playback error attempts restoration and schedules next cycle",async
   assert.equal(restores,1);assert.equal(f.events.includes("error:native failed"),true);
   assert.equal(f.scheduler.getState().cycle,2);await f.scheduler.stop();
 });
+test("session enumeration failure before ducking cannot wedge the scheduler",async()=>{
+  const f=fixture({sourceAvailable:async()=>{throw Error("session enumeration failed");}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);
+  assert.ok(f.events.includes("error:session enumeration failed"));
+  assert.equal(f.scheduler.getState().cycle,2);
+  assert.equal(f.events.includes("log:invalid_state_transition"),false);
+  await f.scheduler.stop();assert.equal(f.timerCount(),0);
+});
 test("source disappearing prevents playback and stops automatic paid preparation",async()=>{
   const f=fixture({sourceAvailable:async()=>false});await f.scheduler.start(settings);await flush();await f.advance(1000);
   assert.equal(f.events.includes("skipped:source_unavailable"),true);
@@ -140,4 +148,93 @@ test("history write failure after playback is not a schedule failure",async()=>{
   await f.scheduler.start(settings);await flush();await f.advance(1000);
   assert.ok(f.events.includes("played"));assert.ok(!f.events.some(event=>event.startsWith("error:")));
   assert.equal(f.scheduler.getState().cycle,2);await f.scheduler.stop();
+});
+
+test("pause freezes the remaining interval and ready recording through wake without touching music",async()=>{
+  let fetches=0,plays=0;
+  const f=fixture({news:{fetch:async()=>{fetches++;return {items:[{id:"1"}]};},markUsed:async()=>{}},
+    player:{play:async request=>{plays++;assert.equal(request.resourceId,audio.resourceId);return {phase:"ended"};},stop:async()=>{},getStatus:async()=>({phase:"playing"}),setPaused:async()=>{assert.fail("waiting must not touch audio");}}});
+  await f.scheduler.start(settings,{script,audio});await f.advance(350);
+  await Promise.all([f.scheduler.setPaused(true),f.scheduler.setPaused(true)]);
+  assert.equal(f.scheduler.getState().remainingMs,650);assert.equal(f.scheduler.getState().nextBroadcastAt,null);
+  assert.equal(f.timerCount(),0);
+  await f.advance(20_000);f.sleep(60_000);await flush();
+  assert.equal(plays,0);assert.equal(fetches,0);assert.equal(f.scheduler.getState().ready,true);
+  await f.scheduler.setPaused(false);await f.advance(649);assert.equal(plays,0);
+  await f.advance(1);assert.equal(plays,1);assert.equal(fetches,1);
+  assert.ok(!f.events.includes("skipped:sleep"));await f.scheduler.stop();
+});
+
+test("preparation finishes during pause and keeps its recording for resume",async()=>{
+  const synthesis=deferred();let calls=0;
+  const f=fixture({speech:{synthesize:()=>{calls++;return synthesis.promise;},cancel:async()=>true}});
+  await f.scheduler.start(settings);await flush();await f.advance(200);await f.scheduler.setPaused(true);
+  synthesis.resolve(audio);await flush();await f.advance(10_000);
+  assert.equal(f.scheduler.getState().phase,"waiting");assert.equal(f.scheduler.getState().paused,true);
+  assert.equal(f.scheduler.getState().ready,true);assert.equal(f.scheduler.getState().remainingMs,800);
+  assert.ok(!f.events.includes("played"));
+  await f.scheduler.setPaused(false);await f.advance(800);assert.ok(f.events.includes("played"));
+  assert.equal(calls,2);await f.scheduler.stop();
+});
+
+test("repeated playback pauses resume the same native playback and prepare the next only at actual end",async()=>{
+  const playback=deferred();const controls=[];let plays=0,fetches=0,key;
+  const f=fixture({news:{fetch:async()=>{fetches++;return {items:[{id:"1"}]};},markUsed:async()=>{}},
+    player:{play:request=>{plays++;key=request.playbackKey;return playback.promise;},stop:async()=>{},getStatus:async()=>({phase:"playing"}),
+      setPaused:async(paused,playbackKey)=>{assert.equal(playbackKey,key);controls.push(paused);return {phase:paused?"paused":"playing"};}}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);
+  for(let i=0;i<3;i++) {
+    await Promise.all([f.scheduler.setPaused(true),f.scheduler.setPaused(true)]);
+    await f.advance(5000);f.scheduler.wake();await flush();
+    assert.equal(f.scheduler.getState().paused,true);assert.equal(plays,1);assert.equal(fetches,1);
+    await f.scheduler.setPaused(false);
+  }
+  assert.deepEqual(controls,[true,false,true,false,true,false]);
+  playback.resolve({phase:"ended"});await flush();
+  assert.equal(fetches,2);assert.equal(f.scheduler.getState().cycle,2);
+  assert.equal(f.scheduler.getState().remainingMs,1000);await f.scheduler.stop();
+});
+
+test("pause arriving during source lookup prevents native playback until resume",async()=>{
+  const lookup=deferred();let plays=0;
+  const f=fixture({sourceAvailable:()=>lookup.promise,player:{play:async()=>{plays++;return {phase:"ended"};},stop:async()=>{},getStatus:async()=>({phase:"idle"})}});
+  await f.scheduler.start(settings,{script,audio});await f.advance(1000);
+  await f.scheduler.setPaused(true);lookup.resolve(true);await flush();
+  assert.equal(plays,0);await f.advance(5000);assert.equal(plays,0);
+  await f.scheduler.setPaused(false);await flush();assert.equal(plays,1);
+  await f.scheduler.stop();
+});
+
+test("playback failure during pause keeps the next cycle frozen and stop clears it",async()=>{
+  const playback=deferred();let stops=0;
+  const f=fixture({player:{play:()=>playback.promise,stop:async()=>{stops++;},getStatus:async()=>({phase:"playing"}),setPaused:async()=>({phase:"paused"})}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);await f.scheduler.setPaused(true);
+  playback.reject(Error("output disconnected"));await flush();await f.advance(5000);
+  assert.equal(stops,1);assert.ok(f.events.includes("error:output disconnected"));
+  assert.equal(f.scheduler.getState().cycle,2);assert.equal(f.scheduler.getState().paused,true);assert.equal(f.timerCount(),0);
+  await f.scheduler.stop();f.scheduler.wake();await flush();
+  assert.equal(f.scheduler.getState().paused,false);assert.equal(f.scheduler.getState().phase,"idle");
+  assert.ok(!f.events.includes("used"));
+});
+
+test("stop during pending native pause waits for cleanup without replay or a new cycle",async()=>{
+  const playback=deferred(),pause=deferred();let calls=0;
+  const f=fixture({player:{play:()=>{calls++;return playback.promise;},stop:async()=>{playback.resolve({phase:"stopped"});pause.reject(Error("stopped"));},
+    getStatus:async()=>({phase:"restoring"}),setPaused:()=>pause.promise}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);
+  const pausing=f.scheduler.setPaused(true);const rejected=assert.rejects(pausing,/stopped/);
+  await f.scheduler.stop();await rejected;f.scheduler.wake();await flush();
+  assert.equal(calls,1);assert.equal(f.timerCount(),0);assert.equal(f.scheduler.getState().phase,"idle");assert.ok(!f.events.includes("used"));
+});
+
+test("actual end racing with pause leaves the following interval frozen",async()=>{
+  const playback=deferred(),pause=deferred();
+  const f=fixture({player:{play:()=>playback.promise,stop:async()=>{},getStatus:async()=>({phase:"playing"}),setPaused:()=>pause.promise}});
+  await f.scheduler.start(settings);await flush();await f.advance(1000);
+  const pausing=f.scheduler.setPaused(true);playback.resolve({phase:"ended"});await flush();
+  assert.equal(f.events.filter(e=>e==="played").length,1);assert.equal(f.scheduler.getState().cycle,2);
+  pause.resolve({phase:"ended"});await pausing;await f.advance(5000);
+  assert.equal(f.scheduler.getState().paused,true);assert.equal(f.scheduler.getState().remainingMs,1000);assert.equal(f.timerCount(),0);
+  await f.scheduler.setPaused(false);await f.advance(999);assert.equal(f.scheduler.getState().cycle,2);
+  await f.scheduler.stop();
 });

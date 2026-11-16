@@ -12,7 +12,7 @@ pub(super) fn load(
         let found=db.query_row("SELECT pcm,transcript,pcm_hash FROM speech_segments WHERE cache_key=?1 AND created_at>?2",params![format::cache_key(text,voice),chrono::Utc::now().timestamp()-86400],|r|Ok((r.get::<_,Vec<u8>>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).optional().map_err(|e|e.to_string())?;
         if let Some((pcm,transcript,hash))=found {
             if !pcm.is_empty()&&pcm.len()<=8*1024*1024&&pcm.len().is_multiple_of(2)&&format::hash(&pcm)==hash&&format::verify(text,&transcript).is_ok(){return Ok(Some((pcm,transcript)));}
-            eprintln!("[recovery] stage=speech action=skipped reason=corrupt_segment_cache");
+            crate::performance::diagnostic!("[recovery] stage=speech action=skipped reason=corrupt_segment_cache");
         }Ok(None)
     })
 }

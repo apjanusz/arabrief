@@ -56,7 +56,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
   private readonly clock: Clock;
   private readonly runner: ManualBroadcastRunner;
   private readonly listeners = new Set<(state: BroadcastState) => void>();
-  private state: BroadcastState = { phase: "idle", nextBroadcastAt: null, remainingMs: null, ready: false, message: null, cycle: 0 };
+  private state: BroadcastState = { phase: "idle", paused: false, nextBroadcastAt: null, remainingMs: null, ready: false, message: null, cycle: 0 };
   private settings: AppSettings | null = null;
   private prepared: PreparedBroadcast | null = null;
   private generation = 0;
@@ -72,6 +72,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
   private polling = false;
   private ticking = false;
   private noMaterial = false;
+  private pauseChange: Promise<void> | null = null;
   constructor(ports: Ports) {
     this.ports = ports;
     this.clock = ports.clock ?? browserClock;
@@ -102,6 +103,8 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     if (!settings.topics.length) throw new Error("Dodaj zainteresowania przed uruchomieniem harmonogramu.");
     if (!Number.isSafeInteger(settings.intervalMs) || settings.intervalMs < 1_000) throw new Error("Nieprawidłowy interwał audycji.");
     this.settings = settings;
+    this.emit({ paused: false });
+    await this.runner.setPaused(false);
     this.log("start");
     this.beginCycle(ready);
   }
@@ -114,7 +117,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     this.dueMono = this.clock.mono() + settings.intervalMs;
     this.dueWall = this.clock.wall() + settings.intervalMs;
     this.observedMono = this.clock.mono(); this.observedWall = this.clock.wall();
-    this.emit({ phase: seed ? "waiting" : "preparing", nextBroadcastAt: new Date(this.dueWall).toISOString(), remainingMs: settings.intervalMs, ready: !!seed, message: null, cycle: this.state.cycle + 1 });
+    this.emit({ phase: seed ? "waiting" : "preparing", nextBroadcastAt: this.state.paused ? null : new Date(this.dueWall).toISOString(), remainingMs: settings.intervalMs, ready: !!seed, message: null, cycle: this.state.cycle + 1 });
     this.log("cycle_started");
     if (seed) { this.log("existing_audio_ready"); this.arm(); return; }
     this.preparation = this.runner.run(settings, true).then(() => {
@@ -138,17 +141,37 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
   }
   private arm() {
     this.clearTimer();
-    if (!this.settings || this.playback || this.stopping) return;
+    if (!this.settings || this.playback || this.stopping || this.state.paused) return;
     const remaining = Math.max(0, this.dueMono - this.clock.mono());
     this.timer = this.clock.set(() => { this.timer = null; void this.tick(); }, Math.min(1_000, remaining));
   }
-  wake() { if (this.settings && !this.playback && !this.stopping) void this.tick(); }
+  wake() { if (this.settings && !this.playback && !this.stopping && !this.state.paused) void this.tick(); }
+  setPaused(paused: boolean): Promise<void> {
+    if (this.pauseChange) return this.pauseChange;
+    if (!this.settings || this.stopping || this.state.paused === paused) return Promise.resolve();
+    this.clearTimer();
+    if (paused) {
+      this.emit({ paused: true, nextBroadcastAt: null, remainingMs: this.playback ? 0 : Math.max(0, this.dueMono - this.clock.mono()) });
+    } else {
+      const remaining = this.state.remainingMs ?? 0;
+      this.dueMono = this.clock.mono() + remaining;
+      this.dueWall = this.clock.wall() + remaining;
+      this.observedMono = this.clock.mono(); this.observedWall = this.clock.wall();
+      this.emit({ paused: false, nextBroadcastAt: new Date(this.dueWall).toISOString() });
+    }
+    this.log(paused ? "paused" : "resumed");
+    this.pauseChange = this.runner.setPaused(paused).finally(() => {
+      this.pauseChange = null;
+      this.arm();
+    });
+    return this.pauseChange;
+  }
   private async tick() {
     if (this.ticking) return;
     this.ticking = true;
     try {
     const settings = this.settings;
-    if (!settings || this.playback || this.stopping) return;
+    if (!settings || this.playback || this.stopping || this.state.paused) return;
     const nowMono = this.clock.mono(), nowWall = this.clock.wall();
     const slept = nowWall - this.observedWall - (nowMono - this.observedMono) > 5_000;
     this.observedMono = nowMono; this.observedWall = nowWall;
@@ -186,7 +209,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
         if (!this.settings || this.stopping) return;
         this.log("source_unavailable"); this.ports.onSkipped("source_unavailable");
         this.settings = null;
-        this.emit({ phase: "error", nextBroadcastAt: null, remainingMs: null, ready: false, message: "Wybrana sesja audio zniknęła. Wybierz aktualne źródło i uruchom ponownie." });
+        this.emit({ phase: "error", paused: false, nextBroadcastAt: null, remainingMs: null, ready: false, message: "Wybrana sesja audio zniknęła. Wybierz aktualne źródło i uruchom ponownie." });
         return;
       }
       if (!this.settings || this.stopping) return;
@@ -198,7 +221,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     } catch (cause) {
       if (!this.settings || this.stopping) return;
       // Native play restores on every exit path; stop is an additional idempotent recovery attempt.
-      this.emit({ phase: "restoring" });
+      if (isPlaying(this.state.phase)) this.emit({ phase: "restoring" });
       try { await this.ports.player.stop(); } catch { this.log("restore_attempt_failed"); }
       const message = errorMessage(cause);
       this.emit({ phase: "error", message });
@@ -212,7 +235,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     this.polling = true;
     try {
       const status = await this.ports.player.getStatus();
-      if (this.settings && !this.stopping && isPlaying(status.phase as BroadcastPhase)) this.emit({ phase: status.phase as BroadcastPhase });
+      if (this.settings && !this.stopping && !this.pauseChange && !this.state.paused && isPlaying(status.phase as BroadcastPhase)) this.emit({ phase: status.phase as BroadcastPhase });
     } catch { this.log("status_unavailable"); }
     finally { this.polling = false; }
   }
@@ -228,11 +251,12 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
         try { await this.runner.stop(); } catch (cause) { failure = cause; this.log("stop_recovery_failed"); }
         await this.preparation?.catch(() => {});
         await this.playback?.catch(() => {});
+        await this.pauseChange?.catch(() => {});
       }
       finally {
         if (this.statusPoll !== null) { clearInterval(this.statusPoll); this.statusPoll = null; }
         this.prepared = null;
-        this.emit({ phase: "idle", nextBroadcastAt: null, remainingMs: null, ready: false, message: null });
+        this.emit({ phase: "idle", paused: false, nextBroadcastAt: null, remainingMs: null, ready: false, message: null });
         this.ports.onStage("idle"); this.log("stopped"); this.stopping = null;
       }
       if (failure) throw failure;

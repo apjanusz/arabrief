@@ -13,7 +13,7 @@ pub(crate) fn settings_key(settings: &AppSettings) -> String {
     let mut topics = settings.topics.clone();
     topics.sort();
     serde_json::json!([
-        "article-chapters-v1",
+        "article-chapters-v4-native-articles",
         topics,
         settings.text_model,
         settings.open_ai_voice,
@@ -45,7 +45,7 @@ pub(crate) fn restore(
         let script = match content::load_saved(repository, id, &settings) {
             Ok(script) => script,
             Err(_) => {
-                eprintln!(
+                crate::performance::diagnostic!(
                     "[recovery] stage=cache id={id} action=skipped reason=invalid_saved_script"
                 );
                 continue;
@@ -53,7 +53,9 @@ pub(crate) fn restore(
         };
         match speech.restore_audio(root, &id.to_string(), settings.open_ai_voice.clone()) {
             Ok(Some(audio)) => {
-                eprintln!("[recovery] stage=cache id={id} action=reused_ready");
+                crate::performance::diagnostic!(
+                    "[recovery] stage=cache id={id} action=reused_ready"
+                );
                 return Ok(Some(Recovery {
                     script,
                     audio: Some(audio),
@@ -68,7 +70,7 @@ pub(crate) fn restore(
                 }
             }
             Err(_) => {
-                eprintln!(
+                crate::performance::diagnostic!(
                     "[recovery] stage=cache id={id} action=kept_script reason=invalid_audio_cache"
                 );
                 if pending.is_none() {
@@ -81,7 +83,7 @@ pub(crate) fn restore(
         }
     }
     if pending.is_some() {
-        eprintln!("[recovery] stage=cache action=resumed_script");
+        crate::performance::diagnostic!("[recovery] stage=cache action=resumed_script");
     }
     Ok(pending)
 }

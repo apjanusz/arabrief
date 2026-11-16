@@ -194,7 +194,7 @@ pub async fn synthesize(
             pcm.extend(audio);
             transcripts.push(transcript);
         }
-        eprintln!(
+        crate::performance::diagnostic!(
             "[recovery] stage=speech action=reused_all_segments count={}",
             parts.len()
         );
@@ -267,7 +267,7 @@ pub async fn synthesize(
                 if pcm.len()+audio.len()>MAX_PCM{return Err("Nagranie przekracza 15 minut".into());}
                 pcm.extend(audio);transcripts.push(transcript.clone());
                 segment_time.cached();
-                eprintln!("[recovery] stage=speech segment={index} action=reused_verified_pcm");
+                crate::performance::diagnostic!("[recovery] stage=speech segment={index} action=reused_verified_pcm");
                 continue;
             }
             send(&mut socket, response(part)).await?;
@@ -281,8 +281,8 @@ pub async fn synthesize(
             let (audio, transcript) = collector.finish(part)?;
             let repo=repository.clone();let text=part.clone();let voice=voice.to_string();let saved=(audio.clone(),transcript.clone());
             match tauri::async_runtime::spawn_blocking(move||super::segment_cache::save(&repo,&text,&voice,&saved)).await {
-                Ok(Ok(()))=>eprintln!("[recovery] stage=speech segment={index} action=saved_verified_pcm"),
-                _=>eprintln!("[recovery] stage=speech segment={index} action=continued reason=segment_cache_write_failed"),
+                Ok(Ok(()))=>crate::performance::diagnostic!("[recovery] stage=speech segment={index} action=saved_verified_pcm"),
+                _=>crate::performance::diagnostic!("[recovery] stage=speech segment={index} action=continued reason=segment_cache_write_failed"),
             }
             segment_time.success();
             drop(segment_time);
@@ -297,7 +297,7 @@ pub async fn synthesize(
     .await;
     if let Err(error) = &result {
         // Errors here have already been sanitized by the protocol/API adapter.
-        eprintln!(
+        crate::performance::diagnostic!(
             "[recovery] stage=speech action=deferred_preserved_verified_segments reason={error}"
         );
         let _ = timeout(

@@ -44,6 +44,7 @@ pub fn run() {
             audio::ducking::audio_restore,
             player::audio_play,
             player::audio_stop,
+            player::audio_set_paused,
             player::audio_get_status,
             player::audio_set_volume,
             settings::settings_load,

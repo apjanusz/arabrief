@@ -95,7 +95,7 @@ pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String>
                 .map(|e| e.source_id.as_str())
                 .collect::<Vec<_>>()
                 .join(",");
-            eprintln!(
+            crate::performance::diagnostic!(
                 "[recovery] stage=content segment={index} sources={sources} action=skipped reason={reason}"
             );
             continue;
@@ -108,7 +108,7 @@ pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String>
             .iter()
             .any(|e| context.previous_quotes.contains(&normalized(&e.quote)))
         {
-            eprintln!(
+            crate::performance::diagnostic!(
                 "[recovery] stage=content segment={index} action=kept reason=shared_quote_is_not_repeated_narration"
             );
         }
@@ -122,7 +122,9 @@ pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String>
             .map(|s| publication(s, context))
             .collect::<Vec<_>>();
     if reordered {
-        eprintln!("[recovery] stage=content action=reordered reason=publication_date");
+        crate::performance::diagnostic!(
+            "[recovery] stage=content action=reordered reason=publication_date"
+        );
     }
     if reordered || kept.len() != original {
         kept.retain(|s| {
@@ -141,7 +143,9 @@ pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String>
     kept.retain(|segment| {
         let size = segment.text.split_whitespace().count();
         if words + size > max_words || bytes + segment.text.len() > 30000 {
-            eprintln!("[recovery] stage=content action=skipped reason=duration_budget");
+            crate::performance::diagnostic!(
+                "[recovery] stage=content action=skipped reason=duration_budget"
+            );
             false
         } else {
             words += size;
@@ -165,7 +169,7 @@ pub(super) fn repair(draft: &mut Draft, context: &Context) -> Result<(), String>
         draft.insufficient_material = true;
         draft.limitations.push(format!("Pominięto {removed} fragmentów, które nie przeszły kontroli. Pozostawiono wyłącznie zweryfikowane materiały."));
     }
-    eprintln!(
+    crate::performance::diagnostic!(
         "[recovery] stage=content action=prepared segments={} omitted={removed}",
         draft.segments.len()
     );

@@ -47,7 +47,7 @@ export function PlaybackTest({ player, sessionId, deviceId, disabled, onBusy }: 
         <button disabled={busy || disabled || !sessionId} onClick={() => void play(true)} className="rounded-lg bg-teal-700 px-4 py-2 disabled:opacity-50">Test audycji z muzyką</button>
         <button disabled={!busy} onClick={() => void player.stop().catch(cause => notifications.error(String(cause), { key: "diagnostic-player" }))} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50">Zatrzymaj nagranie</button>
       </div>
-      <p role="status" className="mt-3 text-sm text-teal-300">{status ? ({ idle: "Gotowy", preparing: "Przygotowanie", ducking: "Ściszanie muzyki", playing: "Odtwarzanie", restoring: "Przywracanie muzyki", ended: "Nagranie zakończone", stopped: "Nagranie zatrzymane", error: "Błąd odtwarzania" })[status.phase] : "Uruchom aplikację desktopową, aby przetestować dźwięk."}</p>
+      <p role="status" className="mt-3 text-sm text-teal-300">{status ? ({ idle: "Gotowy", preparing: "Przygotowanie", ducking: "Ściszanie muzyki", playing: "Odtwarzanie", paused: "Wstrzymano", restoring: "Przywracanie muzyki", ended: "Nagranie zakończone", stopped: "Nagranie zatrzymane", error: "Błąd odtwarzania" })[status.phase] : "Uruchom aplikację desktopową, aby przetestować dźwięk."}</p>
     </section>
   );
 }

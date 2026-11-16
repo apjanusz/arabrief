@@ -15,7 +15,7 @@ import type { PreparationRecovery } from "../modules/scheduler/PreparationRecove
 import type { BackgroundLifecycle, BackgroundLaunch } from "../modules/scheduler/BackgroundLifecycle";
 
 export interface Services { background?: BackgroundLifecycle; recovery: PreparationRecovery; settings: SettingsRepository; audio: Pick<AudioController, "listSessions">; player: AudioPlayer; news: NewsProvider; content: ContentGenerator; speech: SpeechProvider }
-const activePhases = ["preparing", "ducking", "playing", "restoring"];
+const activePhases = ["preparing", "ducking", "playing", "paused", "restoring"];
 export const errorText = (cause: unknown): string => cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : String(cause);
 export function useAraBrief(services: Services) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -29,8 +29,11 @@ export function useAraBrief(services: Services) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [manualPaused, setManualPaused] = useState(false);
+  const [pausePending, setPausePending] = useState(false);
+  const pauseAction = useRef(false);
   const [testing, setTesting] = useState(false);
-  const [schedule, setSchedule] = useState<BroadcastState>({ phase: "idle", nextBroadcastAt: null, remainingMs: null, ready: false, message: null, cycle: 0 });
+  const [schedule, setSchedule] = useState<BroadcastState>({ phase: "idle", paused: false, nextBroadcastAt: null, remainingMs: null, ready: false, message: null, cycle: 0 });
   const stopRequested = useRef(false);
   const quitting = useRef(false);
   const trayAction = useRef(false);
@@ -54,7 +57,7 @@ export function useAraBrief(services: Services) {
     onError: message => notifications.error(message, { title: "Błąd harmonogramu", key: "schedule-error" }),
     makeJobId: () => crypto.randomUUID(),
     sourceAvailable: async id => { const available = await services.audio.listSessions(); setSessions(available); return available.some(session => session.id === id); },
-    log: event => console.info(`[AraBrief scheduler] ${event}`),
+    log: () => {}, // The scheduler retains its bounded diagnostic history in memory.
   });
   useEffect(() => scheduler.current!.subscribe(setSchedule), []);
   useEffect(() => {
@@ -117,8 +120,24 @@ export function useAraBrief(services: Services) {
   }
   const source = sessions.find(session => session.id === settings?.preferredAudioSource?.id) ?? null;
   const nativeBusy = !!playback && activePhases.includes(playback.phase);
-  const scheduledActive = schedule.phase !== "idle" && (schedule.phase !== "error" || !!schedule.nextBroadcastAt);
+  const scheduledActive = schedule.phase !== "idle" && (schedule.phase !== "error" || !!schedule.nextBroadcastAt || schedule.paused);
   const busy = running || scheduledActive || nativeBusy || testing;
+  const paused = scheduledActive ? schedule.paused : running && manualPaused;
+  const canPause = scheduledActive || (running && stage === "playing");
+  async function togglePause() {
+    if (!canPause || stopping || pauseAction.current || quitting.current) return;
+    pauseAction.current = true;
+    setPausePending(true);
+    try {
+      if (scheduledActive) await scheduler.current!.setPaused(!scheduler.current!.getState().paused);
+      else {
+        const next = !manualPaused;
+        await runner.current!.setPaused(next);
+        setManualPaused(next);
+      }
+    } catch (cause) { notifications.error(errorText(cause), { title: "Nie zmieniono stanu pauzy", key: "broadcast-pause" }); }
+    finally { pauseAction.current = false; setPausePending(false); }
+  }
   async function startSchedule() {
     if (!settings || busy || saving || quitting.current) return;
     if (!source) { notifications.warning("Wybierz dostępną sesję muzyki w ustawieniach."); return; }
@@ -131,8 +150,10 @@ export function useAraBrief(services: Services) {
     if (!settings || busy || saving || quitting.current) return;
     if (!prepareOnly && !source) { notifications.warning("Zapisane źródło muzyki jest niedostępne. Wybierz aktualną sesję w ustawieniach."); return; }
     setRunning(true);
+    setManualPaused(false);
     stopRequested.current = false;
     try {
+      await runner.current!.setPaused(false);
       await runner.current!.run(settings, prepareOnly, useReady ? ready ?? undefined : undefined, prepareOnly && !useReady);
       if (!stopRequested.current) notifications.success(prepareOnly ? "Audycja gotowa do odsłuchu." : "Audycja zakończona.");
     } catch (cause) {
@@ -140,7 +161,7 @@ export function useAraBrief(services: Services) {
       if(cause instanceof NoUsableMaterial) notifications.info(cause.message, {key:"no-material"});
       else if (!(stopRequested.current && errorText(cause).startsWith("Anulowano"))) notifications.error(errorText(cause), { key: "broadcast-error" });
     }
-    finally { setRunning(false); setStopping(false); }
+    finally { setRunning(false); setManualPaused(false); setStopping(false); }
   }
   async function stop() {
     stopRequested.current = true;
@@ -197,7 +218,7 @@ export function useAraBrief(services: Services) {
     startupHandled.current = true;
     if (launch.startScheduler && !launch.closing && !quitting.current) void startSchedule();
   }, [launch, loading, settings]);
-  return { settings, sessions, playback, stage, ready, lastPlayed, news, loading, saving, running, stopping, testing, nativeBusy, busy, source, schedule, scheduledActive,
-    save, refreshSessions, reconnect, startSchedule, start, stop, testSound };
+  return { settings, sessions, playback, stage, ready, lastPlayed, news, loading, saving, running, stopping, testing, nativeBusy, busy, source, schedule, scheduledActive, paused, pausePending, canPause,
+    save, refreshSessions, reconnect, startSchedule, start, stop, testSound, togglePause };
 }
 export type Workspace = ReturnType<typeof useAraBrief>;

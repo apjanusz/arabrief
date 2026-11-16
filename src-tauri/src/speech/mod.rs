@@ -322,7 +322,9 @@ impl SpeechService {
             asset.verification = "tts_input_text".into();
             self.index_asset(&path, input, &asset, &publication.file_hash)?;
             asset.cached = true;
-            eprintln!("[recovery] stage=speech action=reindexed_verified_wav");
+            crate::performance::diagnostic!(
+                "[recovery] stage=speech action=reindexed_verified_wav"
+            );
             return Ok(Some(asset));
         }
         Ok(None)
@@ -439,7 +441,9 @@ impl SpeechService {
             Ok(())
         })?;
         let asset = self.persist(root, input, &pcm, transcript, cancel)?;
-        eprintln!("[recovery] stage=speech action=rebuilt_wav_from_verified_segments");
+        crate::performance::diagnostic!(
+            "[recovery] stage=speech action=rebuilt_wav_from_verified_segments"
+        );
         Ok(Some(SpeechAsset {
             cached: true,
             ..asset

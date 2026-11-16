@@ -1,3 +1,4 @@
+mod article;
 pub(crate) mod chapters;
 mod repair;
 use crate::{
@@ -129,7 +130,7 @@ fn parse_response(value: &Value) -> Result<Draft, String> {
     for (index, value) in segments.iter().take(100).enumerate() {
         match serde_json::from_value::<Segment>(value.clone()) {
             Ok(segment) => valid.push(segment),
-            Err(_) => eprintln!(
+            Err(_) => crate::performance::diagnostic!(
                 "[recovery] stage=content segment={index} action=skipped reason=invalid_segment_json"
             ),
         }
@@ -143,7 +144,7 @@ fn parse_response(value: &Value) -> Result<Draft, String> {
         .collect();
     if incomplete {
         limitations.push("Odpowiedź nie została w pełni ukończona. Zachowano wyłącznie kompletne, zweryfikowane segmenty JSON.".into());
-        eprintln!(
+        crate::performance::diagnostic!(
             "[recovery] stage=content action=salvaged_complete_json reason=incomplete_response"
         );
     }
@@ -189,11 +190,11 @@ impl ContentService {
             let mut sources=Vec::new();
             let mut seen=HashSet::new();
             for id in ids {
-                let Ok(id)=id.parse::<i64>() else {eprintln!("[recovery] stage=source action=skipped reason=invalid_id");continue;};
+                let Ok(id)=id.parse::<i64>() else {crate::performance::diagnostic!("[recovery] stage=source action=skipped reason=invalid_id");continue;};
                 if !seen.insert(id) { continue; }
                 let raw: Option<String>=db.query_row("SELECT metadata_json FROM news_articles a WHERE id=?1 AND NOT EXISTS(SELECT 1 FROM news_usage u WHERE u.article_id=a.id) AND NOT EXISTS(SELECT 1 FROM content_sources c WHERE c.article_id=a.id)",[id],|r| r.get(0)).optional().map_err(|e| e.to_string())?;
-                let Some(raw)=raw else {eprintln!("[recovery] stage=source id={id} action=skipped reason=missing_or_reserved");continue;};
-                let Ok(mut source)=serde_json::from_str::<NewsItem>(&raw) else {eprintln!("[recovery] stage=source id={id} action=skipped reason=invalid_metadata");continue;};
+                let Some(raw)=raw else {crate::performance::diagnostic!("[recovery] stage=source id={id} action=skipped reason=missing_or_reserved");continue;};
+                let Ok(mut source)=serde_json::from_str::<NewsItem>(&raw) else {crate::performance::diagnostic!("[recovery] stage=source id={id} action=skipped reason=invalid_metadata");continue;};
                 if source.title.trim().is_empty() {continue;}
                 source.id=id.to_string();
                 // Bound material size before sending to API; stored source snapshot retains what was sent.
@@ -287,7 +288,7 @@ impl ContentService {
                 broadcast.sources.retain(|source|used.contains(source.id.as_str()));
                 broadcast.topics=broadcast.draft.segments.iter().map(|s|s.topic.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
                 broadcast.draft.limitations.push("Pominięto materiały wykorzystane w trakcie przygotowania.".into());
-                eprintln!("[recovery] stage=content action=removed_concurrently_used_sources count={}",unavailable.len());
+                crate::performance::diagnostic!("[recovery] stage=content action=removed_concurrently_used_sources count={}",unavailable.len());
             }
             tx.execute("INSERT INTO content_broadcasts(created_at,title,model,text,estimated_duration_ms,topics_json,draft_json) VALUES (?1,?2,?3,?4,?5,?6,?7)",params![broadcast.created_at,broadcast.title,broadcast.model,broadcast.text,broadcast.estimated_duration_ms,serde_json::to_string(&broadcast.topics).unwrap(),serde_json::to_string(&broadcast.draft).unwrap()]).map_err(|e| e.to_string())?;
             let id=tx.last_insert_rowid(); broadcast.id=id.to_string();
@@ -311,7 +312,7 @@ pub async fn content_generate(
     crate::background::ensure_running(&app).map_err(ContentFailure::from)?;
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        service.generate_chapters(article_ids, &chapters::OpenAiChapters)
+        service.generate_chapters(article_ids, &chapters::OpenAiChapters(&service.repository))
     })
     .await
     .map_err(|_| ContentFailure::from("Błąd modułu generowania".to_string()))?

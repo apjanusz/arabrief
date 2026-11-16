@@ -4,10 +4,39 @@ Aplikacja desktopowa Windows: Tauri 2, React 19, TypeScript 6, Vite 8 i Tailwind
 Po uruchomieniu harmonogramu okresowo ścisza muzykę innej aplikacji, odtwarza krótką audycję AI i przywraca
 wcześniejszą głośność. Muzyka nigdy nie jest pauzowana.
 
+## Instalacja MVP 0.1.0 — Windows
+
+Wydanie przeznaczone jest dla Windows 10/11 x64. Uruchom `AraBrief_0.1.0_x64-setup.exe` i przejdź przez instalator NSIS. Standardowe okna są po polsku; część dodatkowych komunikatów Tauri pozostaje po angielsku. Instalacja dotyczy bieżącego użytkownika. Jeśli brakuje Microsoft Edge WebView2 Runtime, instalator pobierze jego instalator — ten krok wymaga internetu i może wymagać dodatkowych uprawnień. Do działania zainstalowanej aplikacji nie potrzeba Node.js, Rust ani katalogu projektu. Wydanie MVP nie jest podpisane certyfikatem; Windows może wyświetlić ostrzeżenie SmartScreen.
+
+Po uruchomieniu otwórz Ustawienia, zapisz własny klucz OpenAI API w natywnym oknie Windows i sprawdź połączenie. Klucz trafia wyłącznie do Windows Credential Manager, nie do SQLite ani instalatora. Korzystanie z API wymaga aktywnego rozliczania OpenAI i może generować opłaty. Wybierz aktywną sesję muzyki, dodaj tematy i uruchom harmonogram. **Głos audycji jest generowany przez sztuczną inteligencję (OpenAI TTS), nie przez człowieka.**
+
+Dane znajdują się w katalogu użytkownika `%APPDATA%\com.janus.ara-brief`: baza `settings.sqlite3` przechowuje ustawienia, kolejkę, historię i cache rozdziałów/fragmentów PCM, a podkatalog `audio` gotowe nagrania. Profil WebView2 jest zarządzany przez Tauri w katalogach użytkownika. Zachowano identyfikator `com.janus.ara-brief`, aby utrzymać dostęp do dotychczasowych danych i poświadczeń. Instalator nie zawiera danych autora ani klucza API; istniejące dane developerskie tego samego użytkownika mogą zostać wykorzystane przez zainstalowany program.
+
+Build: `npm ci`, następnie w środowisku z Rust MSVC i Visual Studio Build Tools `npm run tauri -- build --bundles nsis`. Wynik domyślnie trafia do `src-tauri/target/release/bundle/nsis/`. Frontend, logo, ikony, prompty i migracje są osadzane podczas kompilacji; SQLite jest kompilowane przez funkcję `bundled`. Nie dodajemy katalogu projektu do `bundle.resources`.
+
+Krótka checklista instalatora (do wykonania ręcznie na Windows, najlepiej na świeżym koncie):
+
+- [ ] Instalacja bez narzędzi developerskich, uruchomienie ze skrótu i poprawne logo; sprawdzenie wariantu bez WebView2.
+- [ ] Zapis klucza, ustawień i tematów; ponowne uruchomienie zachowuje dane, kolejkę i gotowe audio.
+- [ ] Przygotowanie oraz odsłuch audycji; poprawny głos i przywrócenie głośności muzyki po końcu oraz błędzie.
+- [ ] Pauza/Wznów podczas audycji i odliczania; Stop, ukrycie do zasobnika i rzeczywiste zakończenie aplikacji.
+- [ ] Uśpienie/wybudzenie; autostart wyłączony domyślnie, brak samoczynnego odtwarzania bez konfiguracji.
+- [ ] Ponowna instalacja i odinstalowanie po zamknięciu aplikacji; sprawdzenie skrótów, autostartu i sposobu zachowania/usuwania danych użytkownika.
+
 ## Obecny zakres
 
+Limity kosztów rozdziałów: Responses API zachowuje `max_tool_calls: 1`, ale otrzymuje rzeczywisty tekst artykułu pobrany natywnie i `tool_choice: none`. Nowy przepływ wykonuje zatem **zero płatnych web_search** i jedno zapytanie tekstowe na rozdział, bez automatycznego ponawiania HTTP OpenAI. Model dostaje treść, URL i metadane, zamiast próbować znaleźć i otworzyć link w jednym wywołaniu narzędzia. Nadal naliczane są zwykłe koszty tokenów modelu i TTS. Zachowano historyczny rejestr wykorzystanych prób web_search z migracji 012; nie jest resetowany ani obchodzony nowym wyszukiwaniem.
+
+Natywny czytnik (`content/article.rs`) rozwiązuje Google News do strony wydawcy, sprawdza zgodność domeny i tytułu, pobiera HTML i wybiera `articleBody` z JSON-LD lub akapity treści. Google używa niedokumentowanego protokołu przekierowania `Fbv4je`/`garturlreq`; jego zmiana może wymagać aktualizacji resolvera. Nie ma dodatkowej usługi, Node.js w działającej aplikacji ani klucza wyszukiwarki. Parser HTML to `dom_query`, już używany przechodnio przez Tauri, teraz jawna zależność czytnika. Tekst jest zapisywany w istniejącej tabeli `article_materials` przed AI, więc błąd modelu nie usuwa pobranego materiału. Strony z jawnym oznaczeniem paywalla, krótkie zajawki, blokady HTTP i strony wymagające renderowania JavaScript są pomijane. Czytnik nie omija blokad wydawcy. Model nie może udawać osobistego otwarcia strony: `article_read` oznacza przeczytanie dostarczonego tekstu, a cytaty są sprawdzane lokalnie w tym tekście.
+
+Ograniczenia pobierania: publiczne adresy HTTP(S), zweryfikowana domena, kontrola adresów DNS i każdego przekierowania, maksymalnie 2 MiB strony i 24 tys. znaków treści, UTF-8, timeout HTTP do 12 s i budżet czytnika 40 s (systemowe rozwiązywanie DNS ma własne ograniczenia). Połączenia są bezpośrednie, bez proxy i bez ciasteczek przeglądarki użytkownika. Migracja 013 jednorazowo przywraca do kolejki niewykorzystane artykuły odrzucone przez poprzednią ścieżkę web_search, o ile nie mają udanego rozdziału ani historii rozpoczęcia/odsłuchu. Nie usuwa historii i rejestru kosztów. Test na żywo bez OpenAI: `cargo test --manifest-path src-tauri/Cargo.toml --lib live_google_article_reader_without_openai -- --ignored --nocapture` (wymaga internetu).
+
+Tekst pojedynczego rozdziału ma najwyżej 100 słów oddzielonych białymi znakami. Limit jest zapisany w prompcie oraz egzekwowany lokalnie, również dla cache rozdziałów: nadmiar jest usuwany do końca ostatniego pełnego zdania w limicie. Brak pełnego zdania oznacza nieudany rozdział, bez dodatkowego zapytania AI. Nie zmieniono TTS ani harmonogramu; ustawiony czas audycji nie wymusza przekroczenia limitu słów. Stare gotowe audycje nie są automatycznie odzyskiwane pod nowym kluczem konfiguracji.
+
+Dobór tematów: zapytania Google News używają jawnych wyrażeń, a przed zapisaniem Google RSS do kolejki lokalny filtr sprawdza nagłówek i opis (bez nazw wydawców i atrybutów HTML). Dla wspinaczki uwzględnia również bouldering, a dla diety sportowej wymaga kontekstu żywieniowego i sportowego. Dla pozostałych tematów wymaga istotnych słów z uwzględnieniem prostych odmian. Nie wykonuje dodatkowych zapytań AI ani semantycznej deduplikacji. To filtr słownikowy, nie gwarancja rozumienia pełnej treści: może pominąć trafny artykuł opisany wyłącznie synonimem. Brak trafnych wiadomości jest lepszy niż zastępowanie ich ogólnymi wiadomościami sportowymi. Przy pobieraniu usuwa nietrafione przypisania ze starej kolejki, zachowując historię i limity żądań. Zmieniono klucz odzyskiwania przygotowania, aby nie wracały gotowe audycje przygotowane przed wprowadzeniem filtra; zapisane fragmenty rozdziałów i audio nadal mogą być ponownie wykorzystane dla poprawnych artykułów.
+
 Polski interfejs z harmonogramem, wyborem sesji, zainteresowaniami i ustawieniami.
-Synteza mowy przez Realtime, Google News RSS i generowanie scenariuszy
+Synteza mowy przez OpenAI Speech API, Google News RSS i generowanie scenariuszy
 przez OpenAI Responses API działają natywnie. Ustawienia są zapisywane w SQLite,
 a klucz API w Windows Credential Manager.
 Odczyt sesji, ducking i natywne odtwarzanie WAV/MP3 są aktywne. Dostępny jest test
@@ -405,27 +434,24 @@ trzema pracownikami. Nie ma dodatkowych zapytań AI do selekcji, deduplikacji,
 scenariuszy z RSS pozostają wyłącznie dla testów zgodności i odczytu dawnych danych;
 nowe rozdziały ich nie używają.
 
-`content/chapters.rs` wysyła metadane, URL i wymagany zakres długości. Narzędzie
-OpenAI `web_search` ma `external_web_access=true` i `tool_choice=required`.
-Model ma znaleźć i otworzyć konkretny artykuł wydawcy, również gdy wejściowy URL
-jest opakowaniem Google News. Aplikacja wymaga jednocześnie:
+`content/chapters.rs` wysyła metadane, końcowy URL wydawcy i rzeczywisty tekst
+pobrany przez `content/article.rs`. `tool_choice=none` wyłącza wywołania narzędzi.
+Aplikacja wymaga jednocześnie:
 
 - ukończonej odpowiedzi i poprawnego JSON-u;
 - `article_read=true`, gotowego tekstu i krótkich fragmentów dowodowych;
-- ukończonego `web_search_call` z akcją `open_page` dla zwróconego URL-a artykułu;
-- zgodności bezpośredniego URL-a albo domeny wydawcy z metadanych Google News.
+- zapisanego natywnego odczytu i dosłownej zgodności cytatów z dostarczoną treścią;
+- zgodności URL-a rozdziału z pobraną stroną, domeny wydawcy i tytułu z metadanymi.
 
 Samo `search`, snippet, adres Google News, strona główna wydawcy lub deklaracja
-odczytu bez śladu narzędzia nie wystarcza. Model musi zgłosić niedostępność pełnej
+odczytu bez pobranej treści nie wystarcza. Model musi zgłosić niedostępność pełnej
 treści, np. przy paywallu. Nie ma zastępczego tworzenia tekstu z samego nagłówka.
 Strony traktowane są jako niezaufane dane, nie instrukcje. Źródła w interfejsie
 są klikalnymi linkami do przeczytanych artykułów.
 
-Ślad narzędzia potwierdza otwarcie strony przez usługę OpenAI. Nie udostępnia
-aplikacji całego pobranego dokumentu ani niezależnego dowodu prawdziwości każdej
-parafrazy. Rozpoznanie paywalla i zgodności znalezionego artykułu nadal częściowo
-zależy od modelu. Wymagany jest model obsługujący hosted web search i otwieranie
-stron; nie zmieniamy samoczynnie modelu zapisanego w ustawieniach.
+Ślad `native_http_article` oznacza pobranie i odczyt strony przez aplikację,
+a nie przez narzędzie OpenAI. Kontrola cytatów nie jest niezależną weryfikacją
+wszystkich faktów i parafraz. Nie zmieniamy samoczynnie modelu w ustawieniach.
 
 Każdy poprawny rozdział zapisujemy od razu, zanim skończą się pozostałe żądania.
 Błąd późniejszego zapisu audycji lub TTS nie usuwa cache tekstu. Po błędzie
@@ -710,3 +736,11 @@ uczestniczą w generowaniu nowych audycji. Diagnostyka `[pipeline]` podaje etap,
 identyfikator artykułu i wynik. Logi nie zawierają sekretów ani pełnych odpowiedzi API.
 
 Aktualizacja TTS: adapter korzysta z /v1/audio/speech, modelu gpt-4o-mini-tts i głosów marin/cedar. Migracja 011 zastępuje inne zapisane głosy przez marin. Każde żądanie zawiera instrukcję polskiej wymowy. Podział tekstu, cache PCM, składanie i anulowanie pozostają zachowane. Metadana tts_input_text oznacza tekst wejściowy syntezy, a nie transkrypcję otrzymanego audio (Speech API jej nie zwraca). Starsze sekcje Realtime opisują poprzedni adapter. Model według dokumentacji OpenAI będzie wyłączony 6 stycznia 2027: https://developers.openai.com/api/docs/guides/text-to-speech .
+
+Przegląd stabilności MVP: błędy sieci i timeouty odraczają artykuły bez zwiększania licznika wadliwych źródeł; błąd enumeracji sesji nie blokuje harmonogramu. Anulowanie TTS czeka na zakończenie bieżącego blokującego żądania (timeout HTTP 90 s) i zapis cache. Dodatkowa bramka chroni przed równoległym ponowieniem tego samego fragmentu po timeoutcie zadania. Gdy zapis dziennika SQLite zawiedzie podczas przywracania muzyki, Rust podejmuje bezpośrednią próbę odtworzenia oryginalnego poziomu, respektując zmianę użytkownika.
+
+Pauza/Wznów: przycisk na pulpicie wstrzymuje harmonogram lub trwającą audycję (także odsłuch testowy gotowego nagrania). Pomiędzy audycjami zachowuje pozostały czas i gotowe materiały; rozpoczęte przygotowanie może dokończyć się w tle. Podczas audycji Rust pauzuje tę samą kolejkę rodio i przywraca wybraną sesję muzyki. Wznowienie ponownie ścisza muzykę, pobierając nowy snapshot jej aktualnej głośności, i kontynuuje ten sam strumień bez generowania ani ponownego dekodowania. Muzyka nie jest pauzowana. Polecenie IPC `audio_set_paused { paused, playbackKey }` jest przypisane do konkretnego odtwarzania i potwierdzane po przywróceniu/ściszeniu muzyki; spóźnione polecenie nie steruje następną audycją. Stop i rzeczywiste zakończenie aplikacji zwalniają również wstrzymane odtwarzanie. Pauza obowiązuje w bieżącym procesie, nie jest zapisywana jako ustawienie autostartu.
+
+Test ręczny Windows przed wydaniem: w trakcie audycji kilka razy użyć Pauza/Wznów i sprawdzić ciągłość wypowiedzi oraz mikser muzyki; podczas pauzy zmienić głośność muzyki, wznowić i sprawdzić jej przywrócenie po końcu. Sprawdzić też pauzę odliczania przez uśpienie/wybudzenie, Stop/Zakończ w pauzie oraz odłączenie wyjścia audio przed wznowieniem. Testy automatyczne używają zegara testowego i kolejki rodio bez fizycznego wyjścia — nie zastępują odsłuchu i weryfikacji Windows Audio API.
+
+Logi konsoli: rutynowe komunikaty `[perf]`, `[pipeline]` i `[recovery]` są domyślnie wyłączone także w trybie developerskim. Natywną diagnostykę można jednorazowo włączyć, ustawiając w PowerShell `$env:ARABRIEF_DIAGNOSTICS='1'` przed uruchomieniem procesu (odczyt przy pierwszym logowaniu; zmiana wymaga restartu). Frontend nie wypisuje rutynowych etapów i pomiarów do konsoli; obserwatory pomiarów oraz ograniczona historia diagnostyczna harmonogramu pozostają dostępne. Błędy przywracania audio, zamykania i obsługi aplikacji nadal są raportowane. SQLite zachowuje stan kolejki i cache niezależnie od logowania; nie przechowuje pełnej historii diagnostycznej konsoli.

@@ -75,7 +75,9 @@ impl SpeechService {
                 }
                 Err(error) => {
                     check_cancel(cancel)?;
-                    eprintln!("[pipeline] stage=tts article_id={id} error={error}");
+                    crate::performance::diagnostic!(
+                        "[pipeline] stage=tts article_id={id} error={error}"
+                    );
                     if crate::content::chapters::systemic(&error) {
                         crate::content::chapters::defer(&self.repository, &id)?;
                     } else {

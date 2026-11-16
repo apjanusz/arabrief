@@ -56,3 +56,14 @@ dist-ssr
 # Keep other audio files eligible for version control (e.g. test fixtures).
 speech-*.wav
 *.part
+
+# Private credentials, local exports and temporary packaging artifacts
+*.pem
+*.pfx
+*.p12
+*.key
+*.tmp
+*.bak
+/audio/
+/cache/
+/user-data/

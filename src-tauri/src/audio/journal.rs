@@ -87,6 +87,20 @@ pub(super) struct JournaledVolume<V: Volume> {
     expected: Cell<f32>,
 }
 impl<V: Volume> JournaledVolume<V> {
+    /// The original snapshot is already durable. If a later journal write
+    /// fails (e.g. full disk), restoring that original value remains safe.
+    pub fn restore_original(&self) -> Result<Outcome, String> {
+        if !fade::may_write(
+            self.inner.get()?,
+            self.expected.get(),
+            self.inner.overridden(),
+        ) {
+            return Ok(Outcome::ManualOverride);
+        }
+        self.inner.set(self.original)?;
+        self.expected.set(self.original);
+        Ok(Outcome::Completed)
+    }
     pub fn new(
         inner: V,
         journal: Journal,
@@ -277,6 +291,34 @@ mod tests {
         recover(&v, &j, &s).unwrap();
         assert_eq!(v.value.get(), 0.8);
         assert!(j.load().unwrap().is_none());
+    }
+    #[test]
+    fn restoration_survives_journal_failure_without_overwriting_manual_change() {
+        for (current, outcome) in [(0.12, Outcome::Completed), (0.3, Outcome::ManualOverride)] {
+            let j = journal();
+            let v = Fake {
+                value: Cell::new(0.8),
+                fail: false,
+            };
+            let wrapped = JournaledVolume::new(&v, j.clone(), "session".into(), 0.8).unwrap();
+            wrapped.set(0.12).unwrap();
+            v.value.set(current);
+            j.0.with_database(|db| {
+                db.execute("DROP TABLE audio_recovery", []).unwrap();
+                Ok(())
+            })
+            .unwrap();
+            assert!(wrapped.set(0.8).is_err());
+            assert_eq!(wrapped.restore_original().unwrap(), outcome);
+            assert_eq!(
+                v.value.get(),
+                if outcome == Outcome::Completed {
+                    0.8
+                } else {
+                    current
+                }
+            );
+        }
     }
     #[test]
     fn interrupted_write_survives_database_reopen_and_a_second_recovery_crash() {

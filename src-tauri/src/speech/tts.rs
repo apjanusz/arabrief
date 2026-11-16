@@ -2,8 +2,25 @@ use super::{format, segment_cache};
 use crate::settings::SettingsRepository;
 use std::{io::Read, sync::Arc, time::Duration};
 use tokio::sync::watch;
+// A cancelled async caller cannot abort a blocking HTTP request. Keep its
+// cache check/request/save atomic against a subsequent attempt, even if the
+// enclosing chapter timeout drops the caller before this worker completes.
+static SEGMENT_WORKER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn request(text: &str, voice: &str) -> serde_json::Value {
     serde_json::json!({"model":format::MODEL,"voice":voice,"input":text,"instructions":format::INSTRUCTIONS,"response_format":"pcm"})
+}
+async fn finish_worker(
+    mut work: tauri::async_runtime::JoinHandle<Result<(Vec<u8>, String), String>>,
+    cancel: &mut watch::Receiver<bool>,
+) -> Result<(Vec<u8>, String), String> {
+    tokio::select! {
+        _ = cancel.changed()=>{
+            // A blocking request cannot be aborted. Finish caching before ack.
+            let _=work.await;
+            Err("Anulowano generowanie audio".into())
+        },
+        result=&mut work=>result.map_err(|_|"Błąd zadania TTS")?
+    }
 }
 pub(super) async fn synthesize(
     parts: &[String],
@@ -17,7 +34,12 @@ pub(super) async fn synthesize(
         let repo = repository.clone();
         let text = part.clone();
         let voice = voice.to_owned();
+        let worker_cancel = cancel.clone();
         let work = tauri::async_runtime::spawn_blocking(move || {
+            let _guard = SEGMENT_WORKER
+                .lock()
+                .map_err(|_| "Zadanie TTS jest niedostępne")?;
+            super::check_cancel(&worker_cancel)?;
             if let Some(cached) = segment_cache::load(&repo, &text, &voice)? {
                 return Ok(cached);
             }
@@ -54,7 +76,7 @@ pub(super) async fn synthesize(
             segment_cache::save(&repo, &text, &voice, &result)?;
             Ok::<_, String>(result)
         });
-        let (audio, _) = tokio::select! {_ = cancel.changed()=>return Err("Anulowano generowanie audio".into()),result=work=>result.map_err(|_|"Błąd zadania TTS")??};
+        let (audio, _) = finish_worker(work, cancel).await?;
         super::check_cancel(cancel)?;
         if pcm.len() + audio.len() > format::MAX_PCM {
             return Err("Przekroczono limit nagrania".into());
@@ -66,6 +88,30 @@ pub(super) async fn synthesize(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn cancellation_waits_for_inflight_worker_to_save_its_result() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let saved = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let worker_saved = saved.clone();
+        let work = tauri::async_runtime::spawn_blocking(move || {
+            wait.recv().unwrap();
+            worker_saved.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok((vec![0, 0], "saved".into()))
+        });
+        let (sender, mut cancel) = tokio::sync::watch::channel(false);
+        sender.send(true).unwrap();
+        let finish = super::finish_worker(work, &mut cancel);
+        tokio::pin!(finish);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut finish)
+                .await
+                .is_err()
+        );
+        assert!(!saved.load(std::sync::atomic::Ordering::SeqCst));
+        release.send(()).unwrap();
+        assert!(finish.await.unwrap_err().contains("Anulowano"));
+        assert!(saved.load(std::sync::atomic::Ordering::SeqCst));
+    }
     #[test]
     fn speech_request_preserves_input_and_supplies_requested_model_voice_and_instructions() {
         for voice in ["marin", "cedar"] {

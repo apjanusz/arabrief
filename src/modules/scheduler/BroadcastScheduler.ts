@@ -5,6 +5,7 @@ import type { PreparedBroadcast } from "./ManualBroadcastRunner";
 export interface BroadcastScheduler {
   start(settings: AppSettings, ready?: PreparedBroadcast): Promise<void>;
   stop(): Promise<void>;
+  setPaused(paused: boolean): Promise<void>;
   getState(): BroadcastState;
   subscribe(listener: (state: BroadcastState) => void): () => void;
   /** Reconcile monotonic time and wall clock after Windows resumes. */

@@ -33,6 +33,7 @@ export interface NativeCommands {
   audio_restore: { args: { request: { restorationToken: string } }; result: "completed" | "manual_override" };
   audio_play: { args: { request: PlayRequest }; result: PlaybackStatus };
   audio_stop: { args: undefined; result: null };
+  audio_set_paused: { args: { paused: boolean; playbackKey: string }; result: PlaybackStatus };
   audio_get_status: { args: undefined; result: PlaybackStatus };
   audio_set_volume: { args: { volume: number }; result: null };
 }

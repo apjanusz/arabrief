@@ -1,4 +1,5 @@
 use crate::settings::SettingsRepository;
+mod relevance;
 use chrono::{DateTime, Utc};
 use reqwest::{Url, blocking::Client};
 use rusqlite::{OptionalExtension, params};
@@ -73,7 +74,14 @@ impl GoogleNews {
         let date = DateTime::<Utc>::from_timestamp(lower, 0).expect("valid search date");
         let mut url = Url::parse("https://news.google.com/rss/search").expect("constant URL");
         url.query_pairs_mut()
-            .append_pair("q", &format!("{topic} after:{}", date.format("%Y-%m-%d")))
+            .append_pair(
+                "q",
+                &format!(
+                    "{} after:{}",
+                    relevance::query(topic),
+                    date.format("%Y-%m-%d")
+                ),
+            )
             .append_pair("hl", "pl")
             .append_pair("gl", "PL")
             .append_pair("ceid", "PL:pl");
@@ -239,6 +247,28 @@ fn now() -> i64 {
 }
 pub struct NewsRepository(Arc<SettingsRepository>);
 impl NewsRepository {
+    fn prune_irrelevant(&self, topics: &[String]) -> Result<(), String> {
+        self.0.with_database(|db| {
+            let tx = db.transaction().map_err(|e| e.to_string())?;
+            for topic in topics {
+                let records = {
+                    let mut statement = tx.prepare("SELECT a.id,a.metadata_json FROM news_articles a JOIN news_topic_articles t ON t.article_id=a.id WHERE t.topic=?1 AND a.provider='google_news' AND NOT EXISTS(SELECT 1 FROM news_usage u WHERE u.article_id=a.id)").map_err(|e| e.to_string())?;
+                    statement.query_map([normalized(topic)], |r| Ok((r.get::<_, i64>(0)?,r.get::<_, String>(1)?))).map_err(|e| e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e| e.to_string())?
+                };
+                let mut removed = false;
+                for (id, json) in records {
+                    if serde_json::from_str::<NewsItem>(&json).is_ok_and(|item| !relevance::matches(topic, &item)) {
+                        tx.execute("DELETE FROM news_topic_articles WHERE topic=?1 AND article_id=?2", params![normalized(topic),id]).map_err(|e|e.to_string())?;
+                        removed = true;
+                    }
+                }
+                if removed {
+                    tx.execute("DELETE FROM news_pool_state WHERE topic=?1", [normalized(topic)]).map_err(|e|e.to_string())?;
+                }
+            }
+            tx.commit().map_err(|e|e.to_string())
+        })
+    }
     fn save(&self, topic: &str, items: &[NewsItem]) -> Result<(), String> {
         let topic = normalized(topic);
         self.0.with_database(|db| {
@@ -276,7 +306,7 @@ impl NewsRepository {
                     let (id,json) = row.map_err(|e| e.to_string())?;
                     let id = id.to_string();
                     if let Some(existing) = items.iter_mut().find(|i| i.id == id) { existing.topics.push(topic.clone()); continue; }
-                    let Ok(mut item)=serde_json::from_str::<NewsItem>(&json) else {eprintln!("[recovery] stage=news id={id} action=skipped reason=invalid_metadata");continue;};
+                    let Ok(mut item)=serde_json::from_str::<NewsItem>(&json) else {crate::performance::diagnostic!("[recovery] stage=news id={id} action=skipped reason=invalid_metadata");continue;};
                     item.id = id; item.topics = vec![topic.clone()]; items.push(item);
                 }
             }
@@ -402,6 +432,7 @@ impl NewsService {
             .try_lock()
             .map_err(|_| "Pobieranie wiadomości już trwa")?;
         let topics = validate_topics(topics)?;
+        self.repository.prune_irrelevant(&topics)?;
         let existing = self.repository.candidates(&topics)?;
         let due = if existing.len() < 3 {
             self.repository.claim(&topics, now())?
@@ -441,11 +472,12 @@ impl NewsService {
             }
         }
         let timestamp = now();
-        incoming.retain(|(_, item)| {
-            let keep = within_news_window(item, timestamp);
+        incoming.retain(|(topic, item)| {
+            let keep = within_news_window(item, timestamp)
+                && (item.provider != "google_news" || relevance::matches(topic, item));
             if !keep {
-                eprintln!(
-                    "[pipeline] stage=rss action=skipped reason=missing_or_expired_publication_date"
+                crate::performance::diagnostic!(
+                    "[pipeline] stage=rss action=skipped reason=publication_date_or_topic_mismatch"
                 );
             }
             keep
@@ -531,7 +563,7 @@ pub async fn news_mark_used(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn fixture() -> Vec<NewsItem> {
+    pub(super) fn fixture() -> Vec<NewsItem> {
         parse(
             include_bytes!("fixtures/news.xml"),
             "https://news.google.com/rss/search?q=test",
@@ -548,6 +580,7 @@ mod tests {
         let mut items = fixture();
         let timestamp = now();
         for (index, item) in items.iter_mut().enumerate() {
+            item.title = format!("Nauka: {}", item.title);
             if item.published_at.is_some() {
                 item.published_at = Some(
                     DateTime::<Utc>::from_timestamp(timestamp - (3 - index as i64) * 86400, 0)
@@ -621,6 +654,67 @@ mod tests {
         assert_eq!(repo.candidates(&["nauka".into()]).unwrap().len(), 1);
     }
     #[test]
+    fn topic_filter_cleans_existing_queue_and_filters_new_rss_without_losing_history() {
+        let repository = repo();
+        let mut bad = queue_fixture()[0].clone();
+        bad.title = "As Sportu: plebiscyt".into();
+        bad.description_html = None;
+        let mut good = queue_fixture()[1].clone();
+        good.title = "Nowa ściana wspinaczkowa w Polsce".into();
+        repository
+            .save("Wspinaczka sportowa", &[bad.clone(), good.clone()])
+            .unwrap();
+        repository
+            .mark_used(
+                &[repository
+                    .candidates(&["Wspinaczka sportowa".into()])
+                    .unwrap()[0]
+                    .id
+                    .clone()],
+                "old",
+            )
+            .unwrap();
+        // A second, unused wrong result must be removed, while used history remains.
+        let mut unused = bad.clone();
+        unused.url = "https://example.org/wrong".into();
+        unused.guid = Some("wrong".into());
+        repository.save("Wspinaczka sportowa", &[unused]).unwrap();
+        repository
+            .prune_irrelevant(&["Wspinaczka sportowa".into()])
+            .unwrap();
+        let remaining = repository
+            .candidates(&["Wspinaczka sportowa".into()])
+            .unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].title, good.title);
+        assert_eq!(repository.newest("Wspinaczka sportowa").unwrap(), None);
+        repository
+            .0
+            .with_database(|db| {
+                assert_eq!(
+                    db.query_row("SELECT COUNT(*) FROM news_usage", [], |row| row
+                        .get::<_, i64>(0))
+                        .unwrap(),
+                    1
+                );
+                Ok(())
+            })
+            .unwrap();
+
+        struct Feed(Vec<NewsItem>);
+        impl NewsProvider for Feed {
+            fn fetch_topic(&self, _: &str) -> Result<Vec<NewsItem>, FetchError> {
+                Ok(self.0.clone())
+            }
+        }
+        let service = NewsService::new(repo().0);
+        let result = service
+            .fetch_with(vec!["Wspinaczka sportowa".into()], &Feed(vec![bad, good]))
+            .unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert!(result.items[0].title.contains("wspinaczkowa"));
+    }
+    #[test]
     fn persistent_rate_claims_and_provider_cooldown() {
         let repo = repo();
         let topics = vec!["nauka".into()];
@@ -649,7 +743,7 @@ mod tests {
         assert_eq!(
             url.query_pairs().find(|(k, _)| k == "q").unwrap().1,
             format!(
-                "nauka & zdrowie # Polska after:{}",
+                "\"nauka\" \"zdrowie\" \"Polska\" after:{}",
                 DateTime::<Utc>::from_timestamp(timestamp - MAX_NEWS_AGE_SECONDS, 0)
                     .unwrap()
                     .format("%Y-%m-%d")
@@ -746,7 +840,7 @@ mod tests {
         let overlapping = DateTime::<Utc>::from_timestamp(timestamp - 3 * 86400, 0).unwrap();
         assert_eq!(
             query(Some(timestamp - 2 * 86400)),
-            format!("Nauka after:{}", overlapping.format("%Y-%m-%d"))
+            format!("\"Nauka\" after:{}", overlapping.format("%Y-%m-%d"))
         );
     }
     #[test]

@@ -25,6 +25,9 @@ struct State {
     busy: bool,
     stop: bool,
     closing: bool,
+    pause_requested: bool,
+    playback_key: Option<String>,
+    pending_pause: Option<(String, bool)>,
 }
 #[derive(Clone)]
 pub struct AudioPlayer(Arc<(Mutex<State>, Condvar)>);
@@ -42,6 +45,9 @@ impl AudioPlayer {
                 busy: false,
                 stop: false,
                 closing: false,
+                pause_requested: false,
+                playback_key: None,
+                pending_pause: None,
             }),
             Condvar::new(),
         )))
@@ -56,17 +62,62 @@ impl AudioPlayer {
         let status = {
             let mut state = self.state();
             state.status.phase = phase.into();
+            self.0.1.notify_all();
             state.status.clone()
         };
         let _ = app.emit("audio-playback-status", status);
     }
     pub fn stop(&self) {
-        self.state().stop = true;
+        let mut state = self.state();
+        state.stop = true;
+        state.pause_requested = false;
+        state.pending_pause = None;
+        self.0.1.notify_all();
+    }
+    fn set_paused(&self, paused: bool, playback_key: String) -> Result<Status, String> {
+        validate_playback_key(&playback_key)?;
+        let mut state = self.state();
+        if state.closing {
+            return Err("Aplikacja jest zamykana".into());
+        }
+        if !state.busy {
+            // Commands arriving after completion cannot pause another recording.
+            if state.playback_key.as_ref() != Some(&playback_key) {
+                state.pending_pause = Some((playback_key, paused));
+            }
+            return Ok(state.status.clone());
+        }
+        if state.playback_key.as_ref() != Some(&playback_key) {
+            return Err("Żądanie pauzy dotyczy innej audycji".into());
+        }
+        state.pause_requested = paused;
+        self.0.1.notify_all();
+        while state.busy && !state.stop {
+            if state.playback_key.as_ref() != Some(&playback_key) {
+                return Err("Odtwarzana audycja została zmieniona".into());
+            }
+            if state.pause_requested != paused {
+                return Err("Stan pauzy został zmieniony przez nowsze żądanie".into());
+            }
+            if state.status.phase == if paused { "paused" } else { "playing" } {
+                break;
+            }
+            state = self.0.1.wait(state).unwrap_or_else(|e| e.into_inner());
+        }
+        if let Some(error) = &state.status.error {
+            return Err(error.clone());
+        }
+        if state.stop || state.closing {
+            return Err("Odtwarzanie zostało zatrzymane".into());
+        }
+        Ok(state.status.clone())
     }
     pub fn shutdown(&self) {
         let mut state = self.state();
         state.closing = true;
         state.stop = true;
+        state.pause_requested = false;
+        self.0.1.notify_all();
         while state.busy {
             state = self.0.1.wait(state).unwrap_or_else(|e| e.into_inner());
         }
@@ -75,6 +126,8 @@ impl AudioPlayer {
         let mut state = self.state();
         state.closing = true;
         state.stop = true;
+        state.pause_requested = false;
+        self.0.1.notify_all();
     }
     pub(crate) fn set_volume(&self, volume: f32) -> Result<(), String> {
         if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
@@ -87,7 +140,10 @@ impl AudioPlayer {
         self.state().busy
     }
 
-    fn reserve(&self) -> Result<(), String> {
+    fn reserve(&self, playback_key: Option<String>) -> Result<(), String> {
+        if let Some(key) = &playback_key {
+            validate_playback_key(key)?;
+        }
         {
             let mut state = self.state();
             if state.busy || state.closing {
@@ -95,6 +151,11 @@ impl AudioPlayer {
             }
             state.busy = true;
             state.stop = false;
+            state.pause_requested = state
+                .pending_pause
+                .take()
+                .is_some_and(|(key, paused)| Some(key) == playback_key && paused);
+            state.playback_key = playback_key;
             state.status.playback_id += 1;
             state.status.error = None;
             state.status.output_device_id = None;
@@ -125,6 +186,7 @@ impl AudioPlayer {
             .into();
             state.status.error = result.as_ref().err().cloned();
             state.busy = false;
+            state.pause_requested = false;
             self.0.1.notify_all();
             state.status.clone()
         };
@@ -173,17 +235,10 @@ impl AudioPlayer {
             .open_stream()
             .map_err(|e| e.to_string())?;
         let player = Player::connect_new(stream.mixer());
-        let mut restore = RestoreGuard {
+        let restore = std::cell::RefCell::new(RestoreGuard {
             ducking,
             token: None,
-        };
-        if self.state().stop {
-            return Ok(true);
-        }
-        if let Some(session_id) = request.music_session_id {
-            self.phase(app, "ducking");
-            restore.token = Some(restore.ducking.duck(session_id)?.restoration_token);
-        }
+        });
         let result = with_restore(
             || {
                 if self.state().stop {
@@ -193,8 +248,9 @@ impl AudioPlayer {
                     return Err(error);
                 }
                 player.set_volume(self.get_status().volume);
+                // Append once and keep the same source/position across pauses.
+                player.pause();
                 player.append(source);
-                self.phase(app, "playing");
                 loop {
                     // This interval only checks the queue, stop and stream errors; it is not a duration timeout.
                     if let Ok(error) = errors_rx.try_recv() {
@@ -209,10 +265,40 @@ impl AudioPlayer {
                     if player.empty() {
                         return Ok(false);
                     }
+                    if self.state().pause_requested {
+                        player.pause();
+                        if self.get_status().phase != "paused" {
+                            let mut restore = restore.borrow_mut();
+                            if restore.token.is_some() {
+                                self.phase(app, "restoring");
+                            }
+                            restore.finish()?;
+                            // Ack only after the original music volume is restored.
+                            self.phase(app, "paused");
+                        }
+                    } else if player.is_paused() {
+                        if let Some(session_id) = &request.music_session_id {
+                            self.phase(app, "ducking");
+                            let mut restore = restore.borrow_mut();
+                            restore.token =
+                                Some(restore.ducking.duck(session_id.clone())?.restoration_token);
+                        }
+                        // Stop/pause may have arrived during the native fade.
+                        let interrupted = {
+                            let state = self.state();
+                            state.stop || state.pause_requested
+                        };
+                        if interrupted {
+                            continue;
+                        }
+                        player.play();
+                        self.phase(app, "playing");
+                    }
                     std::thread::sleep(Duration::from_millis(20));
                 }
             },
             || {
+                let mut restore = restore.borrow_mut();
                 if restore.token.is_some() {
                     self.phase(app, "restoring");
                 }
@@ -232,11 +318,12 @@ struct RestoreGuard {
 }
 impl RestoreGuard {
     fn finish(&mut self) -> Result<(), String> {
-        if let Some(token) = self.token.take() {
-            self.ducking.restore(token).map(|_| ())
-        } else {
-            Ok(())
+        if let Some(token) = &self.token {
+            // Keep the token on error so the final cleanup/Drop can retry.
+            self.ducking.restore(token.clone())?;
+            self.token = None;
         }
+        Ok(())
     }
 }
 impl Drop for RestoreGuard {
@@ -341,6 +428,13 @@ pub struct PlayRequest {
     resource_id: String,
     music_session_id: Option<String>,
     output_device_id: Option<String>,
+    playback_key: Option<String>,
+}
+fn validate_playback_key(key: &str) -> Result<(), String> {
+    if key.is_empty() || key.len() > 128 {
+        return Err("Nieprawidłowy identyfikator odtwarzania".into());
+    }
+    Ok(())
 }
 #[tauri::command]
 pub async fn audio_play(
@@ -350,7 +444,7 @@ pub async fn audio_play(
     request: PlayRequest,
 ) -> Result<Status, String> {
     crate::background::ensure_running(&app)?;
-    player.reserve()?;
+    player.reserve(request.playback_key.clone())?;
     let player = player.inner().clone();
     let ducking = ducking.inner().clone();
     tauri::async_runtime::spawn_blocking(move || player.play(app, request, ducking))
@@ -360,6 +454,17 @@ pub async fn audio_play(
 #[tauri::command]
 pub fn audio_stop(player: tauri::State<'_, AudioPlayer>) {
     player.stop();
+}
+#[tauri::command]
+pub async fn audio_set_paused(
+    player: tauri::State<'_, AudioPlayer>,
+    paused: bool,
+    playback_key: String,
+) -> Result<Status, String> {
+    let player = player.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || player.set_paused(paused, playback_key))
+        .await
+        .map_err(|e| e.to_string())?
 }
 #[tauri::command]
 pub fn audio_get_status(player: tauri::State<'_, AudioPlayer>) -> Status {
@@ -427,14 +532,142 @@ mod tests {
     #[test]
     fn cannot_start_two_playbacks_or_play_after_shutdown() {
         let player = AudioPlayer::new();
-        player.reserve().unwrap();
-        assert!(player.reserve().is_err());
+        player.reserve(None).unwrap();
+        assert!(player.reserve(None).is_err());
         player.stop();
         assert!(player.state().stop);
         player.begin_shutdown();
-        assert!(player.reserve().is_err());
+        assert!(player.reserve(None).is_err());
         player.state().busy = false;
         player.shutdown();
-        assert!(player.reserve().is_err());
+        assert!(player.reserve(None).is_err());
+    }
+
+    #[test]
+    fn paused_queue_retains_every_sample_and_resumes_without_restarting() {
+        // Drive rodio directly, without a Windows output device or audible sound.
+        let expected: Vec<f32> = (1..=48_000).map(|i| i as f32 / 48_000.0).collect();
+        let (player, mut output) = Player::new();
+        player.append(SamplesBuffer::new(
+            1.try_into().unwrap(),
+            24_000.try_into().unwrap(),
+            expected.clone(),
+        ));
+        let mut heard = Vec::new();
+        for _ in 0..3 {
+            for _ in 0..720 {
+                if let Some(sample) = output.next().filter(|sample| *sample != 0.0) {
+                    heard.push(sample);
+                }
+            }
+            player.pause();
+            // Allow rodio's 5 ms control interval, then require stable silence.
+            for _ in 0..24_000 {
+                if let Some(sample) = output.next().filter(|sample| *sample != 0.0) {
+                    heard.push(sample);
+                }
+            }
+            for _ in 0..1_000 {
+                assert_eq!(output.next(), Some(0.0));
+            }
+            assert!(!player.empty());
+            player.play();
+        }
+        for _ in 0..60_000 {
+            if player.empty() {
+                break;
+            }
+            if let Some(sample) = output.next().filter(|sample| *sample != 0.0) {
+                heard.push(sample);
+            }
+        }
+        assert!(player.empty());
+        assert_eq!(heard, expected);
+    }
+
+    #[test]
+    fn pause_ack_waits_for_restoration_and_resume_ack_waits_for_ducking() {
+        let player = AudioPlayer::new();
+        player.reserve(Some("current".into())).unwrap();
+        for (paused, intermediate, completed) in
+            [(true, "restoring", "paused"), (false, "ducking", "playing")]
+        {
+            let (tx, rx) = mpsc::channel();
+            let worker = player.clone();
+            let task = std::thread::spawn(move || {
+                tx.send(worker.set_paused(paused, "current".into()))
+                    .unwrap();
+            });
+            {
+                let mut state = player.state();
+                while state.pause_requested != paused {
+                    state = player.0.1.wait(state).unwrap();
+                }
+                state.status.phase = intermediate.into();
+                player.0.1.notify_all();
+            }
+            assert!(rx.recv_timeout(Duration::from_millis(20)).is_err());
+            player.state().status.phase = completed.into();
+            player.0.1.notify_all();
+            assert_eq!(
+                rx.recv_timeout(Duration::from_secs(1))
+                    .unwrap()
+                    .unwrap()
+                    .phase,
+                completed
+            );
+            task.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn pause_handles_ipc_start_gap_and_rejects_stale_playback_commands() {
+        let player = AudioPlayer::new();
+        player.set_paused(true, "first".into()).unwrap();
+        player.reserve(Some("first".into())).unwrap();
+        assert!(player.state().pause_requested);
+        {
+            let mut state = player.state();
+            state.busy = false;
+            state.pause_requested = false;
+            state.status.phase = "ended".into();
+        }
+        player.set_paused(true, "first".into()).unwrap();
+        assert!(!player.state().pause_requested);
+        player.reserve(Some("second".into())).unwrap();
+        assert!(!player.state().pause_requested);
+        assert!(player.set_paused(true, "first".into()).is_err());
+        assert!(!player.state().pause_requested);
+        assert!(player.set_paused(true, "".into()).is_err());
+    }
+
+    #[test]
+    fn native_error_and_shutdown_release_pending_pause_without_a_resume() {
+        for shutdown in [false, true] {
+            let player = AudioPlayer::new();
+            player.reserve(Some("current".into())).unwrap();
+            let (tx, rx) = mpsc::channel();
+            let worker = player.clone();
+            let task = std::thread::spawn(move || {
+                tx.send(worker.set_paused(true, "current".into())).unwrap();
+            });
+            {
+                let mut state = player.state();
+                while !state.pause_requested {
+                    state = player.0.1.wait(state).unwrap();
+                }
+            }
+            if shutdown {
+                player.begin_shutdown();
+            } else {
+                let mut state = player.state();
+                state.busy = false;
+                state.status.phase = "error".into();
+                state.status.error = Some("output disconnected".into());
+                player.0.1.notify_all();
+            }
+            assert!(rx.recv_timeout(Duration::from_secs(1)).unwrap().is_err());
+            task.join().unwrap();
+        }
     }
 }

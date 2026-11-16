@@ -7,7 +7,7 @@ const paths = {
   dashboard: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   topics: "M12 21s-9-5.5-9-12a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.5-9 12-9 12Z",
   settings: "M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1 1-3Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
-  play: "m8 5 11 7-11 7V5Z", stop: "M6 6h12v12H6z",
+  play: "m8 5 11 7-11 7V5Z", pause: "M8 5v14 M16 5v14", stop: "M6 6h12v12H6z",
   music: "M9 18V5l12-2v13 M9 9l12-2 M9 18c0 4-7 4-7 1s7-4 7-1Z M21 16c0 4-7 4-7 1s7-4 7-1Z",
   clock: "M12 8v5l3 2 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
   radio: "M4 8h16a2 2 0 0 1 2 2v10H2V10a2 2 0 0 1 2-2Z M4 8l13-6 M7 12a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M14 12h5 M14 16h5",

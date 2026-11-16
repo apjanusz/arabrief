@@ -71,6 +71,7 @@ export interface AppSettings {
 export type BroadcastPhase = "idle" | "preparing" | "waiting" | "ducking" | "playing" | "restoring" | "error";
 export interface BroadcastState {
   phase: BroadcastPhase;
+  paused: boolean;
   nextBroadcastAt: string | null;
   remainingMs: number | null;
   ready: boolean;
