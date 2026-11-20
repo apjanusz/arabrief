@@ -1,6 +1,8 @@
 # AraBrief
 
 Aplikacja desktopowa Windows: Tauri 2, React 19, TypeScript 6, Vite 8 i Tailwind CSS 4.
+
+Ustawienia języka interfejsu: Automatycznie (domyślnie), Polski lub English. W trybie automatycznym Rust odczytuje język interfejsu użytkownika Windows (`GetUserDefaultUILanguage`): polski → `pl`, pozostałe → `en`. Ręczny wybór ma pierwszeństwo i jest zapisywany po użyciu „Zapisz ustawienia”. Migracja 014 dodaje `ui_language` z wartością `auto`, zachowując dotychczasowe ustawienia, w tym niezależny język audycji. Centralne słowniki i hook `useTranslation` znajdują się w `src/app/i18n.tsx`, reguły wyboru w `src/domain/language.ts`, a odczyt systemowy w adapterze Tauri. Na tym etapie tłumaczona jest tylko sekcja wyboru języka; pozostałe teksty i audycje pozostają bez zmian. Po zmianie języka Windows należy ponownie uruchomić AraBrief.
 Po uruchomieniu harmonogramu okresowo ścisza muzykę innej aplikacji, odtwarza krótką audycję AI i przywraca
 wcześniejszą głośność. Muzyka nigdy nie jest pauzowana.
 

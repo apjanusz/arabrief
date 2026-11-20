@@ -6,6 +6,8 @@ import type { Workspace } from "../useAraBrief";
 import { errorText } from "../useAraBrief";
 import { Icon, BrandMark } from "../components/Icon";
 import { notifications } from "../notifications/notifications";
+import { useTranslation } from "../i18n";
+import { isLanguagePreference } from "../../domain/language";
 
 const voices = ["marin", "cedar"];
 // Responses web_search and Standard USD/1M input/output checked 2026-11-16.
@@ -56,6 +58,7 @@ function SettingsSection({ id, icon, title, description, disabled, children }: {
 }
 
 export function Settings({ app, credentials }: { app: Workspace; credentials: CredentialStore }) {
+  const { language, t } = useTranslation();
   const [draft,setDraft] = useState<AppSettings | null>(app.settings);
   const [formError,setFormError] = useState("");
   const [refreshing,setRefreshing] = useState(false);
@@ -73,6 +76,9 @@ export function Settings({ app, credentials }: { app: Workspace; credentials: Cr
   return <>
     <nav className="settings-nav" aria-label="Sekcje ustawień">{[["music-settings","Źródło muzyki"],["sound-settings","Dźwięk"],["broadcast-settings","Audycja"],["voice-settings","Głos i model"],["background-settings","Działanie w tle"],["api-settings","Klucz API"]].map(([id,label])=><a href={`#${id}`} key={id}>{label}<Icon name="arrow" size={13}/></a>)}</nav>
     <form onSubmit={e=>void submit(e)} className="settings-form">
+      <SettingsSection id="language-settings" icon="settings" title={t("languageTitle")} description={t("languageDescription")} disabled={locked}>
+        <div lang={language}><Field label={t("languageLabel")} hint={t("languageHint")}><select value={draft.uiLanguage} onChange={event=>{if(isLanguagePreference(event.target.value))update("uiLanguage",event.target.value);}}><option value="auto">{t("automatic")}</option><option value="pl" lang="pl">Polski</option><option value="en" lang="en">English</option></select></Field></div>
+      </SettingsSection>
       <SettingsSection id="music-settings" icon="music" title="Twoja muzyka" description="Wybierz odtwarzacz, który będzie towarzyszył audycji." disabled={locked}>
         <div className="field-toolbar"><span className="eyebrow">SESJE WINDOWS</span><button type="button" className="text-button" disabled={refreshing || app.busy} onClick={()=>{setRefreshing(true);void app.refreshSessions().finally(()=>setRefreshing(false));}}><Icon name="refresh" size={15}/>{refreshing?"Odświeżanie…":"Odśwież listę"}</button></div>
         <Field label="Źródło muzyki"><select value={draft.preferredAudioSource?.id??""} onChange={e=>{const source=app.sessions.find(s=>s.id===e.target.value);update("preferredAudioSource",source?{id:source.id,name:source.displayName}:null);}}><option value="">Wybierz sesję audio</option>{draft.preferredAudioSource && !selected && <option value={draft.preferredAudioSource.id}>{draft.preferredAudioSource.name} — sesja niedostępna</option>}{app.sessions.map(source=><option key={source.id} value={source.id}>{source.displayName} · {source.processName??`PID ${source.pid}`} · {source.deviceId.slice(-14)}</option>)}</select></Field>

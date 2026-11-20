@@ -7,6 +7,7 @@ import type { BackgroundLaunch, BackgroundStatus } from "../../modules/scheduler
 
 /** Playback commands reject with a string; session commands use NativeError. */
 export interface NativeCommands {
+  system_ui_language: { args: undefined; result: import("../../domain/language").Language };
   background_connect: { args: undefined; result: BackgroundLaunch };
   background_status: { args: { status: BackgroundStatus }; result: null };
   background_stopped: { args: undefined; result: null };

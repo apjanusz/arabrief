@@ -48,6 +48,7 @@ pub fn run() {
             player::audio_get_status,
             player::audio_set_volume,
             settings::settings_load,
+            settings::system_ui_language,
             settings::settings_save,
             credentials::credentials_save,
             credentials::credentials_check,

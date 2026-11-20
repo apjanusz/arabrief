@@ -50,6 +50,7 @@ export interface SpeechAsset {
 }
 
 export interface AppSettings {
+  uiLanguage: import("./language").LanguagePreference;
   version: 1;
   preferredAudioSource: { id: string; name: string } | null;
   intervalMs: number;

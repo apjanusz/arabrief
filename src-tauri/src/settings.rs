@@ -1,6 +1,23 @@
 use rusqlite::{Connection, TransactionBehavior, params};
 use std::{path::Path, sync::Mutex, time::Duration};
 
+fn default_ui_language() -> String {
+    "auto".into()
+}
+
+#[tauri::command]
+pub fn system_ui_language() -> &'static str {
+    #[cfg(windows)]
+    {
+        // PRIMARYLANGID: Polish is 0x15, regardless of regional sublanguage.
+        let language = unsafe { windows::Win32::Globalization::GetUserDefaultUILanguage() };
+        if language & 0x03ff == 0x15 {
+            return "pl";
+        }
+    }
+    "en"
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreferredAudioSource {
@@ -11,6 +28,8 @@ pub struct PreferredAudioSource {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AppSettings {
+    #[serde(default = "default_ui_language")]
+    pub ui_language: String,
     pub version: u32,
     pub preferred_audio_source: Option<PreferredAudioSource>,
     pub interval_ms: u32,
@@ -34,6 +53,7 @@ impl AppSettings {
             !s.trim().is_empty() && s.len() <= max && !s.chars().any(char::is_control)
         }
         if self.version != 1
+            || !["auto", "pl", "en"].contains(&self.ui_language.as_str())
             || !(60000..=86400000).contains(&self.interval_ms)
             || self.fade_out_ms > 30000
             || self.fade_in_ms > 30000
@@ -116,12 +136,18 @@ impl SettingsRepository {
             let id: Option<String> = row.get(0)?;
             let name: Option<String> = row.get(1)?;
             Ok(AppSettings {
+                ui_language: default_ui_language(),
                 version: 1, start_scheduler_on_launch: false, preferred_audio_source: id.zip(name).map(|(id,name)| PreferredAudioSource { id, name }),
                 interval_ms: row.get(2)?, duck_volume: row.get(3)?, fade_out_ms: row.get(4)?, fade_in_ms: row.get(5)?, narrator_volume: row.get(6)?,
                 broadcast_min_duration_ms: row.get(7)?, broadcast_max_duration_ms: row.get(8)?, open_ai_voice: row.get(9)?, text_model: String::new(), auto_start: row.get(10)?, language: row.get(11)?, topics: vec![], news_source_urls: vec![],
             })
         }).map_err(|e| e.to_string())?;
         settings.topics = read_list(&db, "SELECT topic FROM settings_topics ORDER BY position")?;
+        settings.ui_language = db
+            .query_row("SELECT ui_language FROM settings WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| e.to_string())?;
         settings.start_scheduler_on_launch = db
             .query_row(
                 "SELECT start_scheduler_on_launch FROM settings WHERE id=1",
@@ -157,6 +183,11 @@ impl SettingsRepository {
             .map_err(|_| "Repozytorium ustawień niedostępne")?;
         let tx = db.transaction().map_err(|e| e.to_string())?;
         let source = settings.preferred_audio_source.as_ref();
+        tx.execute(
+            "UPDATE settings SET ui_language=?1 WHERE id=1",
+            [&settings.ui_language],
+        )
+        .map_err(|e| e.to_string())?;
         tx.execute(
             "UPDATE settings SET start_scheduler_on_launch=?1 WHERE id=1",
             [settings.start_scheduler_on_launch],
@@ -214,6 +245,7 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
         include_str!("../migrations/011_tts_voices.sql"),
         include_str!("../migrations/012_article_web_budget.sql"),
         include_str!("../migrations/013_native_article_recovery.sql"),
+        include_str!("../migrations/014_ui_language.sql"),
     ];
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
@@ -295,6 +327,46 @@ pub fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ui_language_defaults_roundtrips_and_validates() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        let mut settings = repo.load().unwrap();
+        assert_eq!(settings.ui_language, "auto");
+        for preference in ["pl", "en", "auto"] {
+            settings.ui_language = preference.into();
+            repo.save(&settings).unwrap();
+            assert_eq!(repo.load().unwrap(), settings);
+        }
+        let mut legacy = serde_json::to_value(&settings).unwrap();
+        legacy.as_object_mut().unwrap().remove("uiLanguage");
+        assert_eq!(
+            serde_json::from_value::<AppSettings>(legacy)
+                .unwrap()
+                .ui_language,
+            "auto"
+        );
+        settings.ui_language = "de".into();
+        assert!(repo.save(&settings).is_err());
+        assert_eq!(repo.load().unwrap().ui_language, "auto");
+    }
+    #[test]
+    fn v13_adds_auto_language_without_changing_existing_settings() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        repo.with_database(|db| {
+            db.execute("ALTER TABLE settings DROP COLUMN ui_language", [])
+                .unwrap();
+            db.pragma_update(None, "user_version", 13).unwrap();
+            db.execute("UPDATE settings SET interval_ms=3600000, language='pl'", [])
+                .unwrap();
+            migrate(db).unwrap();
+            Ok(())
+        })
+        .unwrap();
+        let settings = repo.load().unwrap();
+        assert_eq!(settings.ui_language, "auto");
+        assert_eq!(settings.language, "pl");
+        assert_eq!(settings.interval_ms, 3600000);
+    }
     fn schema(db: &Connection) -> Vec<(String, String, Option<String>)> {
         db.prepare("SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name")
             .unwrap().query_map([], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap()
@@ -329,7 +401,7 @@ mod tests {
             let before_schema=schema(db);let before_counts=history_counts(db);
             migrate(db).unwrap();migrate(db).unwrap();
             assert_eq!(schema(db),before_schema);assert_eq!(history_counts(db),before_counts);
-            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),13);
+            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),14);
             assert_eq!(db.query_row("SELECT text FROM content_broadcasts WHERE id=1",[],|r|r.get::<_,String>(0)).unwrap(),"Zapisany scenariusz");
             Ok(())
         }).unwrap();
@@ -362,7 +434,7 @@ mod tests {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            13
+            14
         );
     }
     #[test]
@@ -427,7 +499,7 @@ mod tests {
                 assert_eq!(
                     db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                         .unwrap(),
-                    11
+                    14
                 );
                 Ok(())
             })

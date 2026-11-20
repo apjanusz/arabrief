@@ -15,6 +15,7 @@ import { Settings } from "./app/views/Settings";
 import { Icon } from "./app/components/Icon";
 import logo from "./assets/brand/AraBrief-logo-ciemne.svg";
 import { ToastViewport } from "./app/notifications/ToastViewport";
+import { LanguageProvider } from "./app/i18n";
 
 const services = { background: backgroundLifecycle, recovery: preparationRecovery, settings: settingsRepository, audio: audioSessionReader, player: audioPlayer, news: newsProvider, content: contentGenerator, speech: speechProvider };
 const pages = {
@@ -29,7 +30,7 @@ function App() {
   const heading = useRef<HTMLHeadingElement>(null);
   const app = useAraBrief(services);
   function navigate(next: Page) { setPage(next); requestAnimationFrame(() => heading.current?.focus()); }
-  return <div className="app-shell">
+  return <LanguageProvider preference={app.settings?.uiLanguage ?? "auto"}><div className="app-shell">
     <a href="#main-content" className="skip-link">Przejdź do treści</a>
     <aside className="sidebar">
       <div className="brand"><img src={logo} alt="AraBrief" width="208" height="56"/><small>Twój świat. Na głos.</small></div>
@@ -48,6 +49,6 @@ function App() {
       </main>
     </div>
     <ToastViewport/>
-  </div>;
+  </div></LanguageProvider>;
 }
 export default App;
