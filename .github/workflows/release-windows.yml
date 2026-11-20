@@ -1,0 +1,69 @@
+name: Release AraBrief Windows x64
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          architecture: x64
+          cache: npm
+
+      - name: Verify tag and all version files
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-version.mjs --tag $env:RELEASE_TAG
+
+      - name: Test release version validation
+        run: node --test tests/release-version.test.mjs
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Set up Rust MSVC x64
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      # tauri.conf.json runs npm run build through beforeBuildCommand.
+      # The action creates the release only after the build succeeds.
+      - name: Build NSIS installer and publish GitHub Release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npm run tauri
+          args: --target x86_64-pc-windows-msvc --bundles nsis --ci -- --locked
+          tagName: ${{ github.ref_name }}
+          releaseName: AraBrief ${{ github.ref_name }}
+          releaseBody: |
+            Instalator AraBrief dla Windows x64: pobierz plik setup.exe z sekcji Assets.
+            AraBrief Windows x64 installer: download setup.exe from Assets.
+          releaseDraft: false
+          prerelease: false
+          uploadPlainBinary: false
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false

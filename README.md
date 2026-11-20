@@ -23,6 +23,49 @@ Rozdziały dla starszych materiałów otrzymują datę publikacji i bieżący cz
 
 ## Instalacja MVP 0.1.0 — Windows
 
+Wydania przez GitHub Actions są opisane poniżej. Przygotowanie konfiguracji nie tworzy tagów ani nie publikuje wydania.
+
+### Wydawanie przez GitHub Actions
+
+Workflow `.github/workflows/release-windows.yml` działa wyłącznie po wypchnięciu tagu `vX.Y.Z`, np. `v0.1.0`. Zwykłe commity i pull requesty go nie uruchamiają. Jedyny job działa na Windows, z celem `x86_64-pc-windows-msvc`, i buduje tylko NSIS `.exe`. Oficjalna [tauri-apps/tauri-action](https://github.com/tauri-apps/tauri-action) buduje aplikację, tworzy opublikowane GitHub Release i dołącza instalator. `beforeBuildCommand` Tauri wykonuje build frontendu. Workflow używa `npm ci` oraz Cargo `--locked`. Nie dodaje updatera ani jego plików `latest.json` i `.sig`.
+
+Przed budowaniem `npm run release:check` porównuje wersje w `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, a także obu plikach lock. W CI dodatkowo wymaga dokładnej zgodności tagu z tą wersją. Rozbieżność przerywa workflow przed tworzeniem wydania. Aktualna wspólna wersja to `0.1.0`.
+
+Pierwsze wydanie, z katalogu głównego projektu:
+
+1. Upewnij się, że repozytorium jest na GitHubie, Actions są włączone, a polityka repozytorium/organizacji pozwala użyć wskazanych akcji i uprawnienia `contents: write`. Workflow otrzymuje automatyczny `GITHUB_TOKEN`; nie trzeba dodawać PAT ani klucza OpenAI. Uprawnienie zapisu służy do utworzenia Release i wysłania instalatora.
+2. Sprawdź konfigurację lokalnie:
+
+   ```powershell
+   npm ci
+   npm run release:check -- --tag v0.1.0
+   node --test tests/release-version.test.mjs
+   npm run build
+   ```
+
+3. Przejrzyj zmiany, zapisz konfigurację w commicie i wypchnij gałąź `main`:
+
+   ```powershell
+   git status
+   git add .github/workflows/release-windows.yml scripts/check-release-version.mjs tests/release-version.test.mjs package.json README.md
+   git commit -m "Configure Windows NSIS releases"
+   git push origin main
+   ```
+
+   Jeżeli konfiguracja jest już zapisana w commicie, pomiń `git add` i `git commit`. Tag musi wskazywać kompletny, przetestowany commit zawierający aplikację, lockfile i workflow. Sam push `main` niczego nie publikuje.
+4. **Dopiero gdy chcesz rozpocząć publiczne wydanie**, utwórz i wypchnij tag:
+
+   ```powershell
+   git tag -a v0.1.0 -m "AraBrief 0.1.0"
+   git push origin v0.1.0
+   ```
+
+5. W GitHub otwórz **Actions → Release AraBrief Windows x64**. Po poprawnym zakończeniu instalator `AraBrief_0.1.0_x64-setup.exe` będzie w **Releases → AraBrief v0.1.0 → Assets**. Pobierz go i przeprowadź test instalacji na Windows. Pełny przebieg Actions i pakowanie instalatora wymagają pierwszego rzeczywistego uruchomienia workflow; lokalny build frontendu nie weryfikuje pakowania.
+
+Jeżeli wykonanie się nie powiedzie, sprawdź logi. Przy przejściowej awarii pobierania lub wysyłania można użyć **Re-run failed jobs**. Jeżeli trzeba poprawić kod lub wersję, przygotuj nowy commit i nową wersję/tag zamiast przesuwać opublikowany tag.
+
+Przy następnym wydaniu zmień wersję we wszystkich trzech manifestach i odśwież lockfile: np. `npm version 0.1.1 --no-git-tag-version`, następnie ustaw `0.1.1` w Cargo.toml i tauri.conf.json oraz uruchom `cargo check --manifest-path src-tauri/Cargo.toml`, aby zaktualizować Cargo.lock. Sprawdź `npm run release:check -- --tag v0.1.1`, zapisz zmiany manifestów i lockfile w commicie, wypchnij go i dopiero wtedy tag `v0.1.1`.
+
 Wydanie przeznaczone jest dla Windows 10/11 x64. Uruchom `AraBrief_0.1.0_x64-setup.exe` i przejdź przez instalator NSIS. Interfejs obsługuje polski i angielski; standardowe elementy systemowe korzystają z dostępnych zasobów językowych Windows. Instalacja dotyczy bieżącego użytkownika. Jeśli brakuje Microsoft Edge WebView2 Runtime, instalator pobierze jego instalator — ten krok wymaga internetu i może wymagać dodatkowych uprawnień. Do działania zainstalowanej aplikacji nie potrzeba Node.js, Rust ani katalogu projektu. Wydanie MVP nie jest podpisane certyfikatem; Windows może wyświetlić ostrzeżenie SmartScreen.
 
 Po uruchomieniu otwórz Ustawienia, zapisz własny klucz OpenAI API w natywnym oknie Windows i sprawdź połączenie. Klucz trafia wyłącznie do Windows Credential Manager, nie do SQLite ani instalatora. Korzystanie z API wymaga aktywnego rozliczania OpenAI i może generować opłaty. Wybierz aktywną sesję muzyki, dodaj tematy i uruchom harmonogram. **Głos audycji jest generowany przez sztuczną inteligencję (OpenAI TTS), nie przez człowieka.**
