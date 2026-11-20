@@ -7,6 +7,30 @@ pub const INSTRUCTIONS: &str = "Speak exclusively in Polish with a natural, nati
 pub fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
+pub fn instructions(language: &str) -> &'static str {
+    if language == "en" {
+        "Speak exclusively in natural, fluent English. Read the supplied script exactly, without adding, omitting or translating content. Sound like a professional radio news presenter: warm, calm, confident and engaging. Maintain a conversational rhythm, moderate pace, subtle pauses and restrained expression. Pronounce names, places and numbers clearly. Avoid robotic delivery and exaggerated emotions."
+    } else {
+        INSTRUCTIONS
+    }
+}
+pub fn contextual_cache_key(
+    text: &str,
+    voice: &str,
+    settings: &crate::settings::AppSettings,
+) -> String {
+    hash(
+        serde_json::json!([
+            "speech-v2-locale",
+            cache_key(text, voice),
+            settings.broadcast_language(),
+            settings.effective_region(),
+            instructions(settings.broadcast_language())
+        ])
+        .to_string()
+        .as_bytes(),
+    )
+}
 pub fn cache_key(text: &str, voice: &str) -> String {
     hash(
         serde_json::to_string(&(
@@ -102,6 +126,26 @@ pub fn wav(pcm: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn instructions_and_audio_keys_track_language_and_region() {
+        let repo =
+            crate::settings::SettingsRepository::open(std::path::Path::new(":memory:")).unwrap();
+        let mut settings = repo.load().unwrap();
+        settings.ui_language = "pl".into();
+        settings.news_region = "US".into();
+        let polish = contextual_cache_key("Shared words", "marin", &settings);
+        settings.ui_language = "en".into();
+        let english = contextual_cache_key("Shared words", "marin", &settings);
+        assert_ne!(polish, english);
+        settings.news_region = "GB".into();
+        assert_ne!(
+            english,
+            contextual_cache_key("Shared words", "marin", &settings)
+        );
+        assert!(instructions("en").contains("English"));
+        assert!(!instructions("en").contains("exclusively in Polish"));
+        assert!(instructions("pl").contains("Polish"));
+    }
     #[test]
     fn logical_segments_preserve_polish_text_and_boundaries() {
         let text = "To jest spokojna audycja po polsku. Żółw idzie do źródła.\n\n".repeat(70);

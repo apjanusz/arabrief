@@ -10,14 +10,14 @@ const messages = {
     languageTitle: "Język interfejsu",
     languageDescription: "Wybierz język aplikacji lub użyj języka Windows.",
     languageLabel: "Język",
-    languageHint: "Wybór zostanie zapamiętany po zapisaniu ustawień. Język audycji pozostaje bez zmian.",
+    languageHint: "Wybór zostanie zapamiętany po zapisaniu ustawień. Nowe audycje powstaną w języku aplikacji.",
     automatic: "Automatycznie",
   },
   en: {
     languageTitle: "Interface language",
     languageDescription: "Choose the app language or use the Windows language.",
     languageLabel: "Language",
-    languageHint: "Save settings to remember your selection. Broadcast language remains unchanged.",
+    languageHint: "Save settings to remember your selection. New broadcasts use the app language.",
     automatic: "Automatically",
   },
 } as const;

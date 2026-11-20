@@ -3,7 +3,7 @@ import type { AudioPlayer } from "../audio/AudioPlayer";
 import type { NewsProvider, NewsResult } from "../news/NewsProvider";
 import type { ContentGenerator } from "../content/ContentGenerator";
 import type { SpeechProvider } from "../speech/SpeechProvider";
-import { NoUsableMaterial } from "./PreparationRecovery.ts";
+import { NoUsableMaterial, newsCooldown } from "./PreparationRecovery.ts";
 import type { PreparationRecovery } from "./PreparationRecovery";
 
 export type PreparationStage = "idle" | "news" | "content" | "speech" | "playing";
@@ -79,7 +79,7 @@ export class ManualBroadcastRunner {
   }
   private async execute(settings: AppSettings, prepareOnly: boolean, ready?: PreparedBroadcast, fresh = false): Promise<void> {
     if (!prepareOnly && !settings.preferredAudioSource) throw new Error("Wybierz źródło muzyki w ustawieniach.");
-    const key=JSON.stringify([settings.topics,settings.openAiVoice,settings.textModel,settings.broadcastMinDurationMs,settings.broadcastMaxDurationMs,settings.language,settings.newsSourceUrls]);
+    const key=JSON.stringify([settings.topics,settings.openAiVoice,settings.textModel,settings.broadcastMinDurationMs,settings.broadcastMaxDurationMs,settings.language,settings.uiLanguage,settings.newsRegion,settings.newsSourceUrls]);
     if (key!==this.settingsKey) {this.pending=null;this.fallback=null;this.settingsKey=key;}
     if(ready && this.consumed.has(ready.script.id)) throw new Error("Ta audycja została już rozpoczęta. Przygotuj nową.");
     let prepared = ready;
@@ -152,9 +152,11 @@ export class ManualBroadcastRunner {
       return this.pending;
     }
     this.ports.onStage("news");
-    const news = await this.measured("prepare.news", () => this.ports.news.fetch({ topics: settings.topics }));
+    const news = await this.measured("prepare.news", () => this.ports.news.fetch({ topics: settings.topics, forBroadcast: true }));
     this.ports.onNews(news); this.check();
     if (news.items.length === 0) {
+      const waiting = newsCooldown(news, Date.now() / 1000);
+      if (waiting) throw new NoUsableMaterial(waiting);
       if (news.topics?.some(topic => topic.error)) throw new Error("Nie udało się pobrać wiadomości z żadnego źródła. Spróbujemy w kolejnym cyklu.");
       throw new NoUsableMaterial();
     }

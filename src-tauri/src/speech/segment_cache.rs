@@ -8,19 +8,39 @@ pub(super) fn load(
     text: &str,
     voice: &str,
 ) -> Result<Option<Audio>, String> {
+    let settings = repository.load()?;
+    load_for_settings(repository, text, voice, &settings)
+}
+pub(super) fn load_for_settings(
+    repository: &SettingsRepository,
+    text: &str,
+    voice: &str,
+    settings: &crate::settings::AppSettings,
+) -> Result<Option<Audio>, String> {
     repository.with_database(|db|{
-        let found=db.query_row("SELECT pcm,transcript,pcm_hash FROM speech_segments WHERE cache_key=?1 AND created_at>?2",params![format::cache_key(text,voice),chrono::Utc::now().timestamp()-86400],|r|Ok((r.get::<_,Vec<u8>>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).optional().map_err(|e|e.to_string())?;
+        let found=db.query_row("SELECT pcm,transcript,pcm_hash FROM speech_segments WHERE cache_key=?1 AND created_at>?2",params![format::contextual_cache_key(text,voice,settings),chrono::Utc::now().timestamp()-86400],|r|Ok((r.get::<_,Vec<u8>>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).optional().map_err(|e|e.to_string())?;
         if let Some((pcm,transcript,hash))=found {
             if !pcm.is_empty()&&pcm.len()<=8*1024*1024&&pcm.len().is_multiple_of(2)&&format::hash(&pcm)==hash&&format::verify(text,&transcript).is_ok(){return Ok(Some((pcm,transcript)));}
             crate::performance::diagnostic!("[recovery] stage=speech action=skipped reason=corrupt_segment_cache");
         }Ok(None)
     })
 }
+#[cfg(test)]
 pub(super) fn save(
     repository: &SettingsRepository,
     text: &str,
     voice: &str,
     audio: &Audio,
+) -> Result<(), String> {
+    let settings = repository.load()?;
+    save_for_settings(repository, text, voice, audio, &settings)
+}
+pub(super) fn save_for_settings(
+    repository: &SettingsRepository,
+    text: &str,
+    voice: &str,
+    audio: &Audio,
+    settings: &crate::settings::AppSettings,
 ) -> Result<(), String> {
     format::verify(text, &audio.1)?;
     if audio.0.is_empty() || audio.0.len() > 8 * 1024 * 1024 || !audio.0.len().is_multiple_of(2) {
@@ -29,7 +49,7 @@ pub(super) fn save(
     repository.with_database(|db|{
         let tx=db.transaction().map_err(|e|e.to_string())?;
         tx.execute("DELETE FROM speech_segments WHERE created_at<?1",[chrono::Utc::now().timestamp()-86400]).map_err(|e|e.to_string())?;
-        tx.execute("INSERT INTO speech_segments VALUES (?1,?2,?3,?4,?5) ON CONFLICT(cache_key) DO UPDATE SET pcm=excluded.pcm,transcript=excluded.transcript,pcm_hash=excluded.pcm_hash,created_at=excluded.created_at",params![format::cache_key(text,voice),audio.0,audio.1,format::hash(&audio.0),chrono::Utc::now().timestamp()]).map_err(|e|e.to_string())?;
+        tx.execute("INSERT INTO speech_segments VALUES (?1,?2,?3,?4,?5) ON CONFLICT(cache_key) DO UPDATE SET pcm=excluded.pcm,transcript=excluded.transcript,pcm_hash=excluded.pcm_hash,created_at=excluded.created_at",params![format::contextual_cache_key(text,voice,settings),audio.0,audio.1,format::hash(&audio.0),chrono::Utc::now().timestamp()]).map_err(|e|e.to_string())?;
         tx.commit().map_err(|e|e.to_string())
     })
 }
@@ -37,6 +57,23 @@ pub(super) fn save(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn identical_text_is_not_reused_between_languages_or_regions() {
+        let repo = SettingsRepository::open(std::path::Path::new(":memory:")).unwrap();
+        let mut settings = repo.load().unwrap();
+        settings.ui_language = "pl".into();
+        settings.news_region = "US".into();
+        repo.save(&settings).unwrap();
+        save(&repo, "Test", "marin", &(vec![0; 480], "Test".into())).unwrap();
+        assert!(load(&repo, "Test", "marin").unwrap().is_some());
+        settings.ui_language = "en".into();
+        repo.save(&settings).unwrap();
+        assert!(load(&repo, "Test", "marin").unwrap().is_none());
+        settings.ui_language = "pl".into();
+        settings.news_region = "GB".into();
+        repo.save(&settings).unwrap();
+        assert!(load(&repo, "Test", "marin").unwrap().is_none());
+    }
     #[test]
     fn preserves_completed_parts_after_later_failure_and_reuses_only_matching_voice_and_text() {
         let repository = SettingsRepository::open(std::path::Path::new(":memory:")).unwrap();

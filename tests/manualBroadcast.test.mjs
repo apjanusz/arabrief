@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ManualBroadcastRunner } from "../src/modules/scheduler/ManualBroadcastRunner.ts";
 import { NoUsableMaterial } from "../src/modules/scheduler/PreparationRecovery.ts";
+import { newsCooldown } from "../src/modules/scheduler/PreparationRecovery.ts";
 
 const settings = { topics: ["Nauka"], preferredAudioSource: { id: "music-session", name: "Test session" }, openAiVoice: "alloy" };
 const script = { id: "broadcast-1", sources: [{ id: "1" }, { id: "2" }] };
@@ -20,6 +21,32 @@ function fixture() {
   return { ports, events, runner: new ManualBroadcastRunner(ports) };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test("provider cooldown is informational, starts no paid work, and cancellation still wins", async () => {
+  const f=fixture();const next=Math.floor(Date.now()/1000)+600;
+  f.ports.news.fetch=async()=>({items:[],topics:[{topic:"science",nextFetchAt:next,error:"Google News RSS: HTTP 429"}],fetchedTopics:["science"]});
+  await assert.rejects(f.runner.run(settings,true), error=>error instanceof NoUsableMaterial && error.message===`news_wait:limited:${next}`);
+  assert.ok(!f.events.includes("generate")&&!f.events.includes("synthesize"));
+  assert.equal(newsCooldown({topics:[{nextFetchAt:next,error:null}]},next-1),`news_wait:normal:${next}`);
+  assert.equal(newsCooldown({topics:[{nextFetchAt:next,error:"network error"}]},next-1),null);
+  assert.equal(newsCooldown({topics:[{nextFetchAt:next,error:"HTTP 429"}]},next+1),null);
+  let release;f.ports.news.fetch=()=>new Promise(resolve=>{release=resolve;});
+  const work=f.runner.run(settings,true);await tick();const stop=f.runner.stop();
+  release({items:[],topics:[{topic:"science",nextFetchAt:next,error:"HTTP 429"}],fetchedTopics:[]});
+  await assert.rejects(work,/Anulowano/);await stop;
+});
+
+test("language and region changes discard fallback even when replacement preparation fails", async () => {
+  for (const change of [{language:"en",uiLanguage:"en"},{newsRegion:"US"}]) {
+    const f = fixture();
+    const original = {...settings,language:"pl",uiLanguage:"pl",newsRegion:"PL"};
+    await f.runner.run(original, true);
+    f.ports.content.generate = async () => {throw new Error("replacement failed");};
+    await assert.rejects(f.runner.run({...original,...change},true,undefined,true), /replacement failed/);
+    assert.equal(f.events.filter(event=>event==="ready").length,1);
+    assert.equal(f.events.some(event=>Array.isArray(event)&&event[0]==="play"),false);
+  }
+});
 
 test("partial chapter audio consumes only articles actually included in playback",async()=>{
   const f=fixture();let prepared,used;

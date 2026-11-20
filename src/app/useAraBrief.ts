@@ -101,7 +101,8 @@ export function useAraBrief(services: Services) {
     setSaving(true);
     try {
       await services.settings.save(next);
-      if (settings && JSON.stringify([settings.topics, settings.openAiVoice, settings.textModel, settings.broadcastMinDurationMs, settings.broadcastMaxDurationMs]) !== JSON.stringify([next.topics, next.openAiVoice, next.textModel, next.broadcastMinDurationMs, next.broadcastMaxDurationMs])) setReady(null);
+      next = await services.settings.load();
+      if (settings && JSON.stringify([settings.topics, settings.openAiVoice, settings.textModel, settings.broadcastMinDurationMs, settings.broadcastMaxDurationMs, settings.language, settings.uiLanguage, settings.newsRegion]) !== JSON.stringify([next.topics, next.openAiVoice, next.textModel, next.broadcastMinDurationMs, next.broadcastMaxDurationMs, next.language, next.uiLanguage, next.newsRegion])) { setReady(null); setNews(null); }
       setSettings(next); notifications.success("Zapisano zmiany.");
     }
     catch (cause) { notifications.error(errorText(cause), { title: "Nie zapisano zmian" }); throw cause; }

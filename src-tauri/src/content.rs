@@ -1,4 +1,4 @@
-mod article;
+pub(crate) mod article;
 pub(crate) mod chapters;
 mod repair;
 use crate::{
@@ -74,7 +74,7 @@ fn request_body(context: &Context) -> Value {
     let ids: Vec<_> = context.sources.iter().map(|s| &s.id).collect();
     let sources: Vec<_> = context.sources.iter().map(source_material).collect();
     json!({"model":context.settings.text_model,"store":false,"max_output_tokens":6000,
-        "instructions":include_str!("arabrief_prompt.txt"),
+        "instructions":format!("{}\nOUTPUT LANGUAGE: {}. Write the title, topics, narration and limitations in this language. Preserve exact evidence quotations in the source language.", include_str!("arabrief_prompt.txt"), if context.settings.broadcast_language()=="pl" {"Polish"} else {"English"}),
         "input":[{"role":"user","content":[{"type":"input_text","text":json!({
             "target_min_words":context.settings.broadcast_min_duration_ms*140/60000,
             "target_max_words":context.settings.broadcast_max_duration_ms*140/60000,
@@ -262,7 +262,7 @@ impl ContentService {
             model: context.settings.text_model.clone(),
             title: draft.title.clone(),
             text,
-            language: "pl".into(),
+            language: context.settings.broadcast_language().into(),
             topics,
             estimated_duration_ms,
             target_min_duration_ms: context.settings.broadcast_min_duration_ms,
@@ -292,6 +292,7 @@ impl ContentService {
             }
             tx.execute("INSERT INTO content_broadcasts(created_at,title,model,text,estimated_duration_ms,topics_json,draft_json) VALUES (?1,?2,?3,?4,?5,?6,?7)",params![broadcast.created_at,broadcast.title,broadcast.model,broadcast.text,broadcast.estimated_duration_ms,serde_json::to_string(&broadcast.topics).unwrap(),serde_json::to_string(&broadcast.draft).unwrap()]).map_err(|e| e.to_string())?;
             let id=tx.last_insert_rowid(); broadcast.id=id.to_string();
+            tx.execute("UPDATE content_broadcasts SET language=?2,news_region=?3 WHERE id=?1",params![id,context.settings.broadcast_language(),context.settings.effective_region()]).map_err(|e|e.to_string())?;
             tx.execute("INSERT INTO pipeline_preparations VALUES (?1,?2)",params![id,crate::recovery::settings_key(&context.settings)]).map_err(|e|e.to_string())?;
             for source in &broadcast.sources { tx.execute("INSERT INTO content_sources VALUES (?1,?2,?3)",params![id,source.id,serde_json::to_string(source).unwrap()]).map_err(|e| e.to_string())?; }
             for evidence in broadcast.draft.segments.iter().flat_map(|s| &s.evidence) { tx.execute("INSERT OR IGNORE INTO content_evidence VALUES (?1,?2)",params![id,normalized(&evidence.quote)]).map_err(|e| e.to_string())?; }
@@ -342,6 +343,8 @@ pub(crate) fn load_saved(
     settings: &AppSettings,
 ) -> Result<Broadcast, String> {
     repository.with_database(|db| {
+        let compatible:bool=db.query_row("SELECT language=?2 AND news_region=?3 FROM content_broadcasts WHERE id=?1",params![id,settings.broadcast_language(),settings.effective_region()],|r|r.get(0)).map_err(|e|e.to_string())?;
+        if !compatible { return Err("Broadcast language or news region changed. Prepare a new broadcast.".into()); }
         let (created_at,title,model,text,estimated_duration_ms,topics_json,draft_json)=db.query_row("SELECT created_at,title,model,text,estimated_duration_ms,topics_json,draft_json FROM content_broadcasts WHERE id=?1",[id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,u32>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?))).map_err(|e|e.to_string())?;
         let draft:Draft=serde_json::from_str(&draft_json).map_err(|_|"Uszkodzony zapis scenariusza")?;
         let raw=db.prepare("SELECT snapshot_json FROM content_sources c WHERE broadcast_id=?1 ORDER BY COALESCE((SELECT position FROM broadcast_chapters ch WHERE ch.broadcast_id=c.broadcast_id AND ch.article_id=c.article_id),c.article_id)").map_err(|e|e.to_string())?.query_map([id],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
@@ -353,7 +356,7 @@ pub(crate) fn load_saved(
             return Err("Niespójny zapis rozdziałów".into());
         }
         if text!=draft.segments.iter().map(|s|s.text.as_str()).collect::<Vec<_>>().join("\n\n"){return Err("Niespójny tekst scenariusza".into());}
-        Ok(Broadcast{id:id.to_string(),created_at,title,model,text,estimated_duration_ms,topics:serde_json::from_str(&topics_json).map_err(|_|"Uszkodzony zapis tematów")?,draft,sources,language:"pl".into(),target_min_duration_ms:settings.broadcast_min_duration_ms,target_max_duration_ms:settings.broadcast_max_duration_ms})
+        Ok(Broadcast{id:id.to_string(),created_at,title,model,text,estimated_duration_ms,topics:serde_json::from_str(&topics_json).map_err(|_|"Uszkodzony zapis tematów")?,draft,sources,language:settings.broadcast_language().into(),target_min_duration_ms:settings.broadcast_min_duration_ms,target_max_duration_ms:settings.broadcast_max_duration_ms})
     })
 }
 

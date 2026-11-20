@@ -6,8 +6,8 @@ use tokio::sync::watch;
 // cache check/request/save atomic against a subsequent attempt, even if the
 // enclosing chapter timeout drops the caller before this worker completes.
 static SEGMENT_WORKER: std::sync::Mutex<()> = std::sync::Mutex::new(());
-fn request(text: &str, voice: &str) -> serde_json::Value {
-    serde_json::json!({"model":format::MODEL,"voice":voice,"input":text,"instructions":format::INSTRUCTIONS,"response_format":"pcm"})
+fn request(text: &str, voice: &str, language: &str) -> serde_json::Value {
+    serde_json::json!({"model":format::MODEL,"voice":voice,"input":text,"instructions":format::instructions(language),"response_format":"pcm"})
 }
 async fn finish_worker(
     mut work: tauri::async_runtime::JoinHandle<Result<(Vec<u8>, String), String>>,
@@ -40,7 +40,9 @@ pub(super) async fn synthesize(
                 .lock()
                 .map_err(|_| "Zadanie TTS jest niedostępne")?;
             super::check_cancel(&worker_cancel)?;
-            if let Some(cached) = segment_cache::load(&repo, &text, &voice)? {
+            let settings = repo.load()?;
+            if let Some(cached) = segment_cache::load_for_settings(&repo, &text, &voice, &settings)?
+            {
                 return Ok(cached);
             }
             let key = crate::credentials::read_openai_key()?;
@@ -48,7 +50,7 @@ pub(super) async fn synthesize(
             let mut auth = reqwest::header::HeaderValue::from_str(&bearer)
                 .map_err(|_| "Nieprawidłowy klucz OpenAI")?;
             auth.set_sensitive(true);
-            let body = request(&text, &voice);
+            let body = request(&text, &voice, settings.broadcast_language());
             let response = reqwest::blocking::Client::builder()
                 .timeout(Duration::from_secs(90))
                 .connect_timeout(Duration::from_secs(10))
@@ -73,7 +75,14 @@ pub(super) async fn synthesize(
                 return Err("Nieprawidłowe PCM TTS".into());
             }
             let result = (bytes, text.clone());
-            segment_cache::save(&repo, &text, &voice, &result)?;
+            if crate::recovery::settings_key(&settings)
+                != crate::recovery::settings_key(&repo.load()?)
+            {
+                return Err(
+                    "Broadcast language or news region changed. Prepare a new broadcast.".into(),
+                );
+            }
+            segment_cache::save_for_settings(&repo, &text, &voice, &result, &settings)?;
             Ok::<_, String>(result)
         });
         let (audio, _) = finish_worker(work, cancel).await?;
@@ -88,6 +97,17 @@ pub(super) async fn synthesize(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn english_speech_request_keeps_voice_and_cost_limits_without_polish_instruction() {
+        for voice in ["marin", "cedar"] {
+            let body = super::request("Today's news from Poland.", voice, "en");
+            assert_eq!(body["voice"], voice);
+            assert_eq!(body["model"], "gpt-4o-mini-tts");
+            assert_eq!(body["input"], "Today's news from Poland.");
+            assert_eq!(body["response_format"], "pcm");
+            assert!(body["instructions"].as_str().unwrap().contains("English"));
+        }
+    }
     #[tokio::test]
     async fn cancellation_waits_for_inflight_worker_to_save_its_result() {
         let (release, wait) = std::sync::mpsc::channel();
@@ -115,7 +135,7 @@ mod tests {
     #[test]
     fn speech_request_preserves_input_and_supplies_requested_model_voice_and_instructions() {
         for voice in ["marin", "cedar"] {
-            let body = super::request("Łódź: dwadzieścia stopni.", voice);
+            let body = super::request("Łódź: dwadzieścia stopni.", voice, "pl");
             assert_eq!(body["model"], "gpt-4o-mini-tts");
             assert_eq!(body["voice"], voice);
             assert_eq!(body["input"], "Łódź: dwadzieścia stopni.");

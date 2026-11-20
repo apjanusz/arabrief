@@ -15,7 +15,7 @@ export function Dashboard({ app, navigate }: { app: Workspace; navigate: (page: 
   const configured = !!app.settings && !!app.source && !!app.settings.topics.length;
   const activeIndex = stages.findIndex(stage => stage === app.stage);
   const activeLabel = app.stopping ? copy('ui_f510066568') : app.pausePending ? copy('ui_c6cd44e5f0') : app.paused ? copy('ui_95a9fe3f70') : app.scheduledActive && app.schedule.phase === "restoring" ? copy("ui_95fc32aa28") : app.scheduledActive && app.schedule.phase === "ducking" ? copy("ui_c212ebe146") : app.scheduledActive && app.schedule.phase === "playing" ? copy('ui_3c7446abc0') : app.testing ? copy("ui_d6d6cb0e24") : copy(stageNames[app.stage]);
-  const status = app.loading ? copy("ui_002638871e") : !app.settings ? copy("ui_40b8b37f17") : app.paused || app.pausePending ? activeLabel : app.scheduledActive ? app.schedule.phase === "waiting" ? app.schedule.ready ? copy('ui_0f6561b221') : app.schedule.message ?? copy("ui_7c15d292e8") : app.schedule.phase === "error" ? copy("ui_c12a7f5f10") : activeLabel : app.busy ? activeLabel : app.ready ? copy("ui_7b3bbd1a94") : copy('ui_6bde2c5542');
+  const status = app.loading ? copy("ui_002638871e") : !app.settings ? copy("ui_40b8b37f17") : app.paused || app.pausePending ? activeLabel : app.scheduledActive ? app.schedule.phase === "waiting" ? app.schedule.ready ? copy('ui_0f6561b221') : (app.schedule.message ? copy(app.schedule.message) : copy("ui_7c15d292e8")) : app.schedule.phase === "error" ? copy("ui_c12a7f5f10") : activeLabel : app.busy ? activeLabel : app.ready ? copy("ui_7b3bbd1a94") : copy('ui_6bde2c5542');
   return <>
     <div className="studio-grid">
       <section className={`hero panel ${app.busy ? "hero-active" : ""}`}>

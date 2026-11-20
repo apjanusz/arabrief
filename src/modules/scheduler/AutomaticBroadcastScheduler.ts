@@ -101,7 +101,7 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
     if (this.settings || this.stopping) throw new Error("Harmonogram już działa lub jest zatrzymywany.");
     if (!settings.preferredAudioSource) throw new Error("Wybierz źródło muzyki.");
     if (!settings.topics.length) throw new Error("Dodaj zainteresowania przed uruchomieniem harmonogramu.");
-    if (!Number.isSafeInteger(settings.intervalMs) || settings.intervalMs < 1_000) throw new Error("Nieprawidłowy interwał audycji.");
+    if (!Number.isSafeInteger(settings.intervalMs) || settings.intervalMs < 300_000 || settings.intervalMs > 86_400_000) throw new Error("Nieprawidłowy interwał audycji.");
     this.settings = settings;
     this.emit({ paused: false });
     await this.runner.setPaused(false);
@@ -130,6 +130,9 @@ export class AutomaticBroadcastScheduler implements BroadcastScheduler {
       if(cause instanceof NoUsableMaterial) {
         this.noMaterial=true;
         this.emit({phase:"waiting",message,ready:false});
+        if (message.startsWith("news_wait:")) {
+          try { this.ports.onRecovered?.(message); } catch { /* Isolate notification observers. */ }
+        }
         this.log("preparation_no_usable_material_next_cycle_pending");
         return;
       }

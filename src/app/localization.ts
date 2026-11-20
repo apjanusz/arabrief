@@ -12,6 +12,11 @@ export function translate(key: string, language: Language): string {
 
 /** Translate application diagnostics only, never publisher or generated content. */
 export function localizeMessage(message: string, language: Language): string {
+  const waiting = /^news_wait:(limited|normal):(\d+)$/.exec(message);
+  if (waiting) {
+    const template = catalog[waiting[1] === "limited" ? "newsRateLimited" : "newsCoolingDown"][language];
+    return template.replace("{time}", new Date(Number(waiting[2]) * 1000).toLocaleString(language === "pl" ? "pl-PL" : "en-US"));
+  }
   const source = language === "en" ? "pl" : "en";
   const exact = entries.find(entry => entry[source] === message);
   if (exact) return exact[language];

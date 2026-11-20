@@ -1,3 +1,11 @@
+fn default_news_region() -> String {
+    if system_ui_language() == "pl" {
+        "PL"
+    } else {
+        "US"
+    }
+    .into()
+}
 use rusqlite::{Connection, TransactionBehavior, params};
 use std::{path::Path, sync::Mutex, time::Duration};
 
@@ -39,6 +47,8 @@ pub struct PreferredAudioSource {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AppSettings {
+    #[serde(default = "default_news_region")]
+    pub news_region: String,
     #[serde(default = "default_ui_language")]
     pub ui_language: String,
     pub version: u32,
@@ -59,13 +69,25 @@ pub struct AppSettings {
     pub news_source_urls: Vec<String>,
 }
 impl AppSettings {
+    pub fn broadcast_language(&self) -> &'static str {
+        if self.ui_language == "pl" || (self.ui_language == "auto" && system_ui_language() == "pl")
+        {
+            "pl"
+        } else {
+            "en"
+        }
+    }
+    pub fn effective_region(&self) -> &str {
+        &self.news_region
+    }
     pub fn validate(&self) -> Result<(), String> {
         fn text(s: &str, max: usize) -> bool {
             !s.trim().is_empty() && s.len() <= max && !s.chars().any(char::is_control)
         }
         if self.version != 1
+            || crate::countries::find(&self.news_region).is_none()
             || !["auto", "pl", "en"].contains(&self.ui_language.as_str())
-            || !(60000..=86400000).contains(&self.interval_ms)
+            || !(300000..=86400000).contains(&self.interval_ms)
             || self.fade_out_ms > 30000
             || self.fade_in_ms > 30000
             || !self.duck_volume.is_finite()
@@ -147,6 +169,7 @@ impl SettingsRepository {
             let id: Option<String> = row.get(0)?;
             let name: Option<String> = row.get(1)?;
             Ok(AppSettings {
+                news_region: default_news_region(),
                 ui_language: default_ui_language(),
                 version: 1, start_scheduler_on_launch: false, preferred_audio_source: id.zip(name).map(|(id,name)| PreferredAudioSource { id, name }),
                 interval_ms: row.get(2)?, duck_volume: row.get(3)?, fade_out_ms: row.get(4)?, fade_in_ms: row.get(5)?, narrator_volume: row.get(6)?,
@@ -154,6 +177,11 @@ impl SettingsRepository {
             })
         }).map_err(|e| e.to_string())?;
         settings.topics = read_list(&db, "SELECT topic FROM settings_topics ORDER BY position")?;
+        settings.news_region = db
+            .query_row("SELECT news_region FROM settings WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| e.to_string())?;
         settings.ui_language = db
             .query_row("SELECT ui_language FROM settings WHERE id=1", [], |row| {
                 row.get(0)
@@ -178,11 +206,13 @@ impl SettingsRepository {
         if !["marin", "cedar"].contains(&settings.open_ai_voice.as_str()) {
             settings.open_ai_voice = "marin".into();
         }
+        settings.language = settings.broadcast_language().into();
         settings.validate()?;
         Ok(settings)
     }
     pub fn save(&self, settings: &AppSettings) -> Result<(), String> {
         let mut normalized = settings.clone();
+        normalized.language = normalized.broadcast_language().into();
         if !["marin", "cedar"].contains(&normalized.open_ai_voice.as_str()) {
             normalized.open_ai_voice = "marin".into();
         }
@@ -194,6 +224,11 @@ impl SettingsRepository {
             .map_err(|_| "Repozytorium ustawień niedostępne")?;
         let tx = db.transaction().map_err(|e| e.to_string())?;
         let source = settings.preferred_audio_source.as_ref();
+        tx.execute(
+            "UPDATE settings SET news_region=?1 WHERE id=1",
+            [&settings.news_region],
+        )
+        .map_err(|e| e.to_string())?;
         tx.execute(
             "UPDATE settings SET ui_language=?1 WHERE id=1",
             [&settings.ui_language],
@@ -257,6 +292,10 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
         include_str!("../migrations/012_article_web_budget.sql"),
         include_str!("../migrations/013_native_article_recovery.sql"),
         include_str!("../migrations/014_ui_language.sql"),
+        include_str!("../migrations/015_broadcast_locale.sql"),
+        include_str!("../migrations/016_country_picker.sql"),
+        include_str!("../migrations/017_rss_backoff.sql"),
+        include_str!("../migrations/018_archive_selection.sql"),
     ];
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let version: u32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
@@ -272,6 +311,10 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
             tx.pragma_update(None, "user_version", (index + 1) as u32)?;
         }
     }
+    tx.execute(
+        "UPDATE settings SET news_region=?1 WHERE news_region=''",
+        [default_news_region()],
+    )?;
     tx.commit()
 }
 
@@ -341,12 +384,108 @@ pub fn apply(
 mod tests {
     use super::*;
     #[test]
+    fn migration_upgrades_short_intervals_and_save_rejects_them() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        repo.with_database(|db| {
+            db.execute("UPDATE settings SET interval_ms=60000", [])
+                .unwrap();
+            db.execute_batch("DROP TABLE IF EXISTS news_search_ranges; DROP TABLE IF EXISTS news_read_failures; DROP TABLE news_retry_state").unwrap();
+            db.pragma_update(None, "user_version", 16).unwrap();
+            migrate(db).unwrap();
+            Ok(())
+        })
+        .unwrap();
+        let mut settings = repo.load().unwrap();
+        assert_eq!(settings.interval_ms, 300000);
+        settings.interval_ms = 299999;
+        assert!(repo.save(&settings).is_err());
+        assert_eq!(repo.load().unwrap().interval_ms, 300000);
+    }
+    #[test]
+    fn country_migration_freezes_old_auto_and_preserves_manual_choices() {
+        for previous in ["auto", "PL", "US", "GB"] {
+            let mut db = Connection::open_in_memory().unwrap();
+            migrate(&mut db).unwrap();
+            db.execute("UPDATE settings SET news_region=?1", [previous])
+                .unwrap();
+            db.execute_batch("DROP TABLE IF EXISTS news_search_ranges; DROP TABLE IF EXISTS news_read_failures; DROP TABLE news_retry_state").unwrap();
+            db.pragma_update(None, "user_version", 15).unwrap();
+            migrate(&mut db).unwrap();
+            let saved: String = db
+                .query_row("SELECT news_region FROM settings", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                saved,
+                if previous == "auto" {
+                    default_news_region()
+                } else {
+                    previous.into()
+                }
+            );
+            db.execute("UPDATE settings SET ui_language='en'", [])
+                .unwrap();
+            migrate(&mut db).unwrap();
+            assert_eq!(
+                saved,
+                db.query_row("SELECT news_region FROM settings", [], |r| r
+                    .get::<_, String>(0))
+                    .unwrap()
+            );
+        }
+    }
+    #[test]
+    fn v14_migration_preserves_preferences_and_marks_historical_broadcasts_polish() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        repo.with_database(|db| {
+            db.execute_batch("ALTER TABLE settings DROP COLUMN news_region; ALTER TABLE content_broadcasts DROP COLUMN news_region; ALTER TABLE content_broadcasts DROP COLUMN language; DROP TABLE news_region_articles; DROP TABLE IF EXISTS news_search_ranges; DROP TABLE IF EXISTS news_read_failures; DROP TABLE news_retry_state; UPDATE settings SET ui_language='en', interval_ms=3600000; INSERT INTO content_broadcasts VALUES (1,'now','History','fixture','Saved Polish narration',1000,'[]','{}');").unwrap();
+            db.pragma_update(None,"user_version",14).unwrap();
+            migrate(db).unwrap();
+            let historical:(String,String,String)=db.query_row("SELECT language,news_region,text FROM content_broadcasts WHERE id=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+            assert_eq!(historical,("pl".into(),"PL".into(),"Saved Polish narration".into()));
+            Ok(())
+        }).unwrap();
+        let settings = repo.load().unwrap();
+        assert_eq!(settings.news_region, default_news_region());
+        assert_eq!(settings.ui_language, "en");
+        assert_eq!(settings.language, "en");
+        assert_eq!(settings.interval_ms, 3600000);
+    }
+    #[test]
+    fn language_region_preferences_are_independent_and_roundtrip() {
+        let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        let mut settings = repo.load().unwrap();
+        assert_eq!(settings.news_region, default_news_region());
+        for country in crate::countries::all() {
+            settings.news_region = country.code.clone();
+            for ui in ["pl", "en", "auto"] {
+                settings.ui_language = ui.into();
+                repo.save(&settings).unwrap();
+                let loaded = repo.load().unwrap();
+                assert_eq!(loaded.news_region, country.code);
+                assert_eq!(loaded.effective_region(), country.code);
+            }
+        }
+        let mut json = serde_json::to_value(repo.load().unwrap()).unwrap();
+        json.as_object_mut().unwrap().remove("newsRegion");
+        assert_eq!(
+            serde_json::from_value::<AppSettings>(json)
+                .unwrap()
+                .news_region,
+            default_news_region()
+        );
+        for invalid in ["auto", "XX", ""] {
+            settings.news_region = invalid.into();
+            assert!(repo.save(&settings).is_err());
+        }
+    }
+    #[test]
     fn ui_language_defaults_roundtrips_and_validates() {
         let repo = SettingsRepository::open(Path::new(":memory:")).unwrap();
         let mut settings = repo.load().unwrap();
         assert_eq!(settings.ui_language, "auto");
         for preference in ["pl", "en", "auto"] {
             settings.ui_language = preference.into();
+            settings.language = settings.broadcast_language().into();
             repo.save(&settings).unwrap();
             assert_eq!(repo.load().unwrap(), settings);
         }
@@ -368,7 +507,9 @@ mod tests {
         repo.with_database(|db| {
             db.execute("ALTER TABLE settings DROP COLUMN ui_language", [])
                 .unwrap();
+            db.execute_batch("ALTER TABLE settings DROP COLUMN news_region; ALTER TABLE content_broadcasts DROP COLUMN news_region; ALTER TABLE content_broadcasts DROP COLUMN language; DROP TABLE news_region_articles;").unwrap();
             db.pragma_update(None, "user_version", 13).unwrap();
+            db.execute_batch("DROP TABLE IF EXISTS news_search_ranges; DROP TABLE IF EXISTS news_read_failures; DROP TABLE news_retry_state").unwrap();
             db.execute("UPDATE settings SET interval_ms=3600000, language='pl'", [])
                 .unwrap();
             migrate(db).unwrap();
@@ -410,11 +551,11 @@ mod tests {
         settings.interval_ms = 3600000;
         repo.save(&settings).unwrap();
         repo.with_database(|db| {
-            db.execute("INSERT INTO content_broadcasts VALUES (1,'now','Fixture','fixture','Zapisany scenariusz',1000,'[]','{}')",[]).unwrap();
+            db.execute("INSERT INTO content_broadcasts(id,created_at,title,model,text,estimated_duration_ms,topics_json,draft_json) VALUES (1,'now','Fixture','fixture','Zapisany scenariusz',1000,'[]','{}')",[]).unwrap();
             let before_schema=schema(db);let before_counts=history_counts(db);
             migrate(db).unwrap();migrate(db).unwrap();
             assert_eq!(schema(db),before_schema);assert_eq!(history_counts(db),before_counts);
-            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),14);
+            assert_eq!(db.pragma_query_value(None,"user_version",|r|r.get::<_,u32>(0)).unwrap(),18);
             assert_eq!(db.query_row("SELECT text FROM content_broadcasts WHERE id=1",[],|r|r.get::<_,String>(0)).unwrap(),"Zapisany scenariusz");
             Ok(())
         }).unwrap();
@@ -447,7 +588,7 @@ mod tests {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            14
+            18
         );
     }
     #[test]
@@ -512,7 +653,7 @@ mod tests {
                 assert_eq!(
                     db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                         .unwrap(),
-                    14
+                    18
                 );
                 Ok(())
             })

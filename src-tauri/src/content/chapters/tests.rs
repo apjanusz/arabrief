@@ -1,6 +1,142 @@
 use super::*;
 use crate::news::{FetchError, NewsProvider, NewsService};
+use chrono::DateTime;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[test]
+fn archive_prompt_has_current_time_publication_date_and_temporal_safeguards() {
+    let repo = repository(std::path::Path::new(":memory:"));
+    let mut settings = repo.load().unwrap();
+    let mut source = article(1);
+    source.published_at = Some((Utc::now() - chrono::Duration::days(45)).to_rfc3339());
+    let material = ArticleText {
+        url: source.url.clone(),
+        title: source.title.clone(),
+        body: "An older article announcing an event next week.".into(),
+    };
+    for language in ["pl", "en"] {
+        settings.ui_language = language.into();
+        let body = request(&source, &settings, &material);
+        let input: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
+        assert!(
+            DateTime::parse_from_rfc3339(input["preparation_time_utc"].as_str().unwrap()).is_ok()
+        );
+        assert_eq!(
+            input["article"]["published_at"],
+            source.published_at.clone().unwrap()
+        );
+        assert!(
+            body["instructions"]
+                .as_str()
+                .unwrap()
+                .contains("KONTEKST CZASOWY")
+        );
+        assert_eq!(body["max_output_tokens"], 5000);
+        assert_eq!(body["tool_choice"], "none");
+    }
+}
+
+#[test]
+fn validated_chapter_cache_can_satisfy_selection_without_a_page_read() {
+    let repo = repository(std::path::Path::new(":memory:"));
+    let settings = repo.load().unwrap();
+    let source = article(1);
+    let mut source = source;
+    source.id = "1".into();
+    let (chapter, access) = Model::new(vec![]).chapter(&source, &settings).unwrap();
+    repo.with_database(|db|{
+        db.execute("INSERT INTO news_articles(id,provider,canonical_url,metadata_json,first_seen_at) VALUES (1,'fixture',?1,'{}',0)",[&source.url]).unwrap();
+        db.execute("INSERT INTO article_chapters VALUES (1,?1,?2,?3)",params![config_key(&settings),serde_json::to_string(&chapter).unwrap(),access.to_string()]).unwrap();Ok(())
+    }).unwrap();
+    assert_eq!(
+        cached_readable(&repo, &source, &settings).unwrap(),
+        Some(source.url.clone())
+    );
+    let mut other = settings.clone();
+    other.ui_language = if settings.broadcast_language() == "pl" {
+        "en"
+    } else {
+        "pl"
+    }
+    .into();
+    assert!(cached_readable(&repo, &source, &other).unwrap().is_none());
+    repo.with_database(|db| {
+        db.execute("UPDATE article_chapters SET chapter_json='broken'", [])
+            .unwrap();
+        Ok(())
+    })
+    .unwrap();
+    assert!(
+        cached_readable(&repo, &source, &settings)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn prompts_keys_and_saved_broadcasts_follow_language_independently_of_region() {
+    let repo = repository(std::path::Path::new(":memory:"));
+    let mut settings = repo.load().unwrap();
+    settings.news_region = "US".into();
+    settings.ui_language = "pl".into();
+    repo.save(&settings).unwrap();
+    let polish_key = config_key(&settings);
+    let source = article(1);
+    let material = ArticleText {
+        url: source.url.clone(),
+        title: "English source headline".into(),
+        body: "An English source article with measurement results.".into(),
+    };
+    let polish_request = request(&source, &settings, &material);
+    assert!(
+        polish_request["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("OUTPUT LANGUAGE: Polish")
+    );
+    let pool = NewsService::new(repo.clone());
+    let content = ContentService::new(repo.clone());
+    let ids = ids(pool
+        .fetch_with(settings.topics.clone(), &Pool::new())
+        .unwrap());
+    let saved = content.generate_chapters(ids, &Model::new(vec![])).unwrap();
+    assert_eq!(saved.language, "pl");
+    assert!(load_saved(&repo, saved.id.parse().unwrap(), &repo.load().unwrap()).is_ok());
+    settings.ui_language = "en".into();
+    repo.save(&settings).unwrap();
+    assert_ne!(polish_key, config_key(&settings));
+    assert!(
+        request(&source, &settings, &material)["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("OUTPUT LANGUAGE: English")
+    );
+    assert!(load_saved(&repo, saved.id.parse().unwrap(), &repo.load().unwrap()).is_err());
+    let english = content
+        .generate_chapters(
+            saved
+                .sources
+                .iter()
+                .map(|source| source.id.clone())
+                .collect(),
+            &Model::new(vec![]),
+        )
+        .unwrap();
+    assert_eq!(english.language, "en");
+    assert_eq!(english.title, "AraBrief news briefing");
+    assert!(
+        english
+            .draft
+            .limitations
+            .iter()
+            .all(|text| !text.contains("Przygotowano"))
+    );
+    settings.ui_language = "pl".into();
+    settings.news_region = "GB".into();
+    repo.save(&settings).unwrap();
+    assert_ne!(polish_key, config_key(&settings));
+    assert!(load_saved(&repo, saved.id.parse().unwrap(), &repo.load().unwrap()).is_err());
+}
 
 struct Pool {
     calls: AtomicUsize,

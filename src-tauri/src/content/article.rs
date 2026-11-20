@@ -12,7 +12,7 @@ mod tests;
 const MAX_PAGE: u64 = 2 * 1024 * 1024;
 const MAX_BODY: usize = 24_000;
 #[derive(Clone, Debug)]
-pub(super) struct ArticleText {
+pub(crate) struct ArticleText {
     pub url: String,
     pub title: String,
     pub body: String,
@@ -448,7 +448,7 @@ fn extract(html: &str, url: &str, expected_title: &str) -> Result<ArticleText, S
     }
     Err("Nie uzyskano pełnego tekstu artykułu (tylko zajawka, blokada lub strona wymaga JavaScript)".into())
 }
-pub(super) fn load(
+pub(crate) fn load(
     repository: &SettingsRepository,
     source: &NewsItem,
 ) -> Result<ArticleText, String> {

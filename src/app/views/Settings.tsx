@@ -9,6 +9,7 @@ import { Icon, BrandMark } from "../components/Icon";
 import { notifications } from "../notifications/notifications";
 import { useTranslation } from "../i18n";
 import { isLanguagePreference } from "../../domain/language";
+import { CountryPicker } from "../components/CountryPicker";
 
 const voices = ["marin", "cedar"];
 // Responses web_search and Standard USD/1M input/output checked 2026-11-16.
@@ -85,6 +86,7 @@ export function Settings({ app, credentials }: { app: Workspace; credentials: Cr
     <nav className="settings-nav" aria-label={copy("ui_d3356992a8")}>{[["music-settings",copy("ui_1a38c8918f")],["sound-settings",copy("ui_4f36ed8eed")],["broadcast-settings",copy('ui_b9f5ba9e84')],["voice-settings",copy("ui_dbb8249fe8")],["background-settings",copy("ui_e9af572d08")],["api-settings",copy('ui_7f8d132328')]].map(([id,label])=><a href={`#${id}`} key={id}>{copy(label)}<Icon name="arrow" size={13}/></a>)}</nav>
     <form onSubmit={e=>void submit(e)} className="settings-form">
       <SettingsSection id="language-settings" icon="settings" title={t("languageTitle")} description={t("languageDescription")} disabled={locked}>
+        <CountryPicker value={draft.newsRegion} onChange={value=>update("newsRegion",value)}/>
         <div lang={language}><Field label={t("languageLabel")} hint={t("languageHint")}><select value={draft.uiLanguage} onChange={event=>{if(isLanguagePreference(event.target.value))update("uiLanguage",event.target.value);}}><option value="auto">{t("automatic")}</option><option value="pl" lang="pl">Polski</option><option value="en" lang="en">English</option></select></Field></div>
       </SettingsSection>
       <SettingsSection id="music-settings" icon="music" title={copy('ui_f760c21c4c')} description={copy("ui_4bfd02264f")} disabled={locked}>
@@ -99,7 +101,8 @@ export function Settings({ app, credentials }: { app: Workspace; credentials: Cr
 
       <SettingsSection id="broadcast-settings" icon="clock" title={copy('ui_e188d51794')} description={copy("ui_84c9d91b92")} disabled={locked}>
         <div className="form-grid"><NumberField label={copy("ui_4f37703e8a")} min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMinDurationMs/60000} change={v=>update("broadcastMinDurationMs",v*60000)}/><NumberField label={copy("ui_e97eac330e")} min={0.5} max={15} step={0.5} unit="min" value={draft.broadcastMaxDurationMs/60000} change={v=>update("broadcastMaxDurationMs",v*60000)}/></div><p className="footnote"> {copy("ui_8057db5dd9")} </p>
-        <div className="schedule-settings"><NumberField label={copy("ui_2b1906e478")} min={1} max={1440} unit="min" value={draft.intervalMs/60000} change={v=>update("intervalMs",v*60000)}/><div><span className="badge"> {copy("ui_b5a986a17c")} </span><p className="small muted"> {copy("ui_ad3db79fc8")} </p></div></div>
+        <div className="schedule-settings"><NumberField label={copy("ui_2b1906e478")} min={5} max={1440} unit="min" value={draft.intervalMs/60000} change={v=>update("intervalMs",v*60000)}/><div><span className="badge"> {copy("ui_b5a986a17c")} </span><p className="small muted"> {copy("ui_ad3db79fc8")} </p></div></div>
+        <p className="footnote">{copy("minimumBroadcastGap")}</p>
       </SettingsSection>
 
       <SettingsSection id="voice-settings" icon="radio" title={copy("ui_08341c2a9d")} description={copy('ui_cb91377303')} disabled={locked}>

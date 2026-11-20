@@ -16,6 +16,8 @@ test("every catalog entry is available in both languages", () => {
 });
 
 test("stored messages, nested native errors and technical values switch language", () => {
+  assert.match(localizeMessage("news_wait:limited:1795187764","en"),/Google News has limited/);
+  assert.match(localizeMessage("news_wait:limited:1795187764","pl"),/Google News ograniczył/);
   assert.equal(localizeMessage("Zapisano zmiany.", "en"), "Changes saved.");
   assert.equal(localizeMessage("Changes saved.", "pl"), "Zapisano zmiany.");
   assert.equal(localizeMessage("Przywracanie muzyki: Nieprawidłowy identyfikator odtwarzania", "en"), "Restoring music: Invalid playback identifier");

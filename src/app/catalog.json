@@ -300,8 +300,8 @@
     "en": "moves you?"
   },
   "ui_680d4b2096": {
-    "pl": "Wielkie odkrycia czy małe lokalne historie? Ty wybierasz tematy. My szukamy wiadomości w polskiej edycji Google News.",
-    "en": "Big discoveries or local stories? You choose the topics. We search the Polish edition of Google News."
+    "pl": "Wielkie odkrycia czy małe lokalne historie? Ty wybierasz tematy. My szukamy wiadomości w wybranej edycji Google News.",
+    "en": "Big discoveries or local stories? You choose the topics. We search the selected edition of Google News."
   },
   "ui_faecb08125": {
     "pl": "Dodaj zainteresowanie",
@@ -319,6 +319,10 @@
     "pl": "Do 30 tematów. Każda zmiana zapisuje się automatycznie.",
     "en": "Up to 30 topics. Every change is saved automatically."
   },
+  "interestsVarietyAdvice": {
+    "pl": "Więcej zainteresowań to większy wybór wiadomości. Dodaj kilka różnych tematów, które Cię ciekawią - gdy w jednym zabraknie nowych artykułów, pozostałe mogą dostarczyć materiałów do kolejnej audycji.",
+    "en": "More interests mean a wider choice of news. Add a few different topics that interest you - when one has no new articles, the others may provide material for your next broadcast."
+  },
   "ui_117ab5623a": {
     "pl": "Im bardziej konkretny temat, tym trafniejsze wiadomości. Warto dopisać dziedzinę lub miejsce, które Cię interesuje.",
     "en": "Specific topics produce more relevant news. Include a field or location that interests you."
@@ -328,8 +332,8 @@
     "en": "Your topic list"
   },
   "ui_16b2a87a64": {
-    "pl": "Google News · Polska",
-    "en": "Google News · Poland"
+    "pl": "Google News · wybrany region",
+    "en": "Google News · selected region"
   },
   "ui_fad168175a": {
     "pl": "Twoja lista czeka na połączenie",
@@ -800,8 +804,8 @@
     "en": "News — RSS diagnostics"
   },
   "ui_4a38ed0e9b": {
-    "pl": "Google News · język polski · Polska. Pobieramy metadane i dostępny opis RSS, bez pełnej treści artykułów.",
-    "en": "Google News · Polish · Poland. We retrieve metadata and available RSS descriptions, without full article content."
+    "pl": "Google News · wybrany region. Pobieramy metadane i dostępny opis RSS, bez pełnej treści artykułów.",
+    "en": "Google News · selected region. We retrieve metadata and available RSS descriptions, without full article content."
   },
   "ui_6d58a44373": {
     "pl": "Tematy — jeden w każdym wierszu (maksymalnie 30)",
@@ -2044,8 +2048,8 @@
     "en": "e.g. gpt-6-sol"
   },
   "ui_cb91377303": {
-    "pl": "Lektor AI czyta przygotowany scenariusz po polsku.",
-    "en": "The AI narrator reads the prepared script in Polish."
+    "pl": "Lektor AI czyta scenariusz w języku aplikacji.",
+    "en": "The AI narrator reads the script in the app language."
   },
   "ui_098fc88a4f": {
     "pl": "Interwał {0} min · {1}",
@@ -2310,5 +2314,61 @@
   "realtimeModelLabel": {
     "pl": "Model Realtime",
     "en": "Realtime model"
+  },
+  "newsRegionLabel": {
+    "pl": "Region wiadomości Google News",
+    "en": "Google News region"
+  },
+  "newsRegionHint": {
+    "pl": "Wpisz nazwę kraju lub jego kod i wybierz podpowiedź. Domyślnie: Polska dla polskiego Windows, USA dla pozostałych języków systemu. Zapisany kraj nie zmienia się wraz z językiem aplikacji.",
+    "en": "Type a country name or code and choose a suggestion. The initial default is Poland for Polish Windows, USA for other system languages. Your saved country stays unchanged when the app language changes."
+  },
+  "regionPL": {
+    "pl": "Polska",
+    "en": "Poland"
+  },
+  "regionUS": {
+    "pl": "USA",
+    "en": "USA"
+  },
+  "regionGB": {
+    "pl": "Wielka Brytania",
+    "en": "United Kingdom"
+  },
+  "localeMismatch": {
+    "pl": "Zmieniono język audycji lub region wiadomości. Przygotuj nową audycję.",
+    "en": "Broadcast language or news region changed. Prepare a new broadcast."
+  },
+  "badRegion": {
+    "pl": "Nieprawidłowy region wiadomości.",
+    "en": "Invalid news region."
+  },
+  "badLanguage": {
+    "pl": "Nieprawidłowy język audycji.",
+    "en": "Invalid broadcast language."
+  },
+  "countrySearch": {
+    "pl": "Wyszukaj kraj…",
+    "en": "Search countries…"
+  },
+  "countryRequired": {
+    "pl": "Wybierz kraj z listy podpowiedzi.",
+    "en": "Choose a country from the suggestions."
+  },
+  "newsRateLimited": {
+    "pl": "Google News ograniczył pobieranie wiadomości. Kolejna próba najwcześniej: {time}. Muzyka gra dalej.",
+    "en": "Google News has limited news fetching. Next attempt no earlier than: {time}. Music keeps playing."
+  },
+  "newsCoolingDown": {
+    "pl": "Oczekiwanie na kolejne pobieranie wiadomości. Kolejna próba najwcześniej: {time}. Muzyka gra dalej.",
+    "en": "Waiting before fetching news again. Next attempt no earlier than: {time}. Music keeps playing."
+  },
+  "minimumBroadcastGap": {
+    "pl": "Minimalna przerwa między audycjami to 5 minut.",
+    "en": "The minimum gap between broadcasts is 5 minutes."
+  },
+  "invalidInterval": {
+    "pl": "Nieprawidłowy interwał audycji. Minimum: 5 minut.",
+    "en": "Invalid broadcast interval. Minimum: 5 minutes."
   }
 }

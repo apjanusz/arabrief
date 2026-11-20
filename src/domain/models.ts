@@ -22,7 +22,7 @@ export interface BroadcastScript {
   model: string;
   title: string;
   text: string;
-  language: string;
+  language: import("./language").Language;
   topics: string[];
   estimatedDurationMs: number;
   targetMinDurationMs: number;
@@ -50,6 +50,7 @@ export interface SpeechAsset {
 }
 
 export interface AppSettings {
+  newsRegion: import("./newsRegion").NewsRegionPreference;
   uiLanguage: import("./language").LanguagePreference;
   version: 1;
   preferredAudioSource: { id: string; name: string } | null;
@@ -65,7 +66,8 @@ export interface AppSettings {
   textModel: string;
   autoStart: boolean;
   startSchedulerOnLaunch: boolean;
-  language: string;
+  /** Effective language, resolved by Rust from uiLanguage and Windows. */
+  language: import("./language").Language;
   newsSourceUrls: string[];
 }
 

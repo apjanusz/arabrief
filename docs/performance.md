@@ -1,3 +1,5 @@
+> Aktualizacja limitów RSS: obecny adapter używa jednego pracownika i trwałych przerw 5 minut na temat / minuta między partiami. Poniższe porównania równoległości są historyczne i nie opisują bieżącej polityki pobierania.
+
 # Wydajność przygotowania AraBrief
 
 ## Zakres aktualnego kodu
@@ -22,7 +24,7 @@ Logi nie zawierają promptów, transkrypcji, PCM, odpowiedzi API ani nagłówkó
 | `broadcast.total` | Ręczne przygotowanie i odtworzenie albo sam odsłuch gotowego audio |
 | `rss.http` | Żądanie i odczyt ograniczonej odpowiedzi |
 | `rss.parse` | Parsowanie i normalizacja kanału |
-| `rss.fetch_queue` | Praca maksymalnie czterech pracowników |
+| `rss.fetch_queue` | Pobieranie sekwencyjne: do 3 tematów na partię, odstęp HTTP minimum 2 s |
 | `rss.persist_sqlite/candidates_sqlite` | Zapis wyników oraz wybór nowych wiadomości |
 | `rss.total` | RSS wraz z cache/limiterem; `cache_hit` oznacza brak nowych żądań |
 | `content.context_sqlite/request_build` | Historia, źródła i przygotowanie JSON |

@@ -13,13 +13,14 @@ pub(crate) fn settings_key(settings: &AppSettings) -> String {
     let mut topics = settings.topics.clone();
     topics.sort();
     serde_json::json!([
-        "article-chapters-v4-native-articles",
+        "article-chapters-v6-archive-context",
         topics,
         settings.text_model,
         settings.open_ai_voice,
         settings.broadcast_min_duration_ms,
         settings.broadcast_max_duration_ms,
-        settings.language,
+        settings.broadcast_language(),
+        settings.effective_region(),
         settings.news_source_urls
     ])
     .to_string()
@@ -91,7 +92,10 @@ fn claim(repository: &SettingsRepository, id: &str) -> Result<(), String> {
     let id: i64 = id
         .parse()
         .map_err(|_| "Nieprawidłowy identyfikator audycji")?;
+    let settings = repository.load()?;
     repository.with_database(|db| {
+        let compatible:bool=db.query_row("SELECT language=?2 AND news_region=?3 FROM content_broadcasts WHERE id=?1",params![id,settings.broadcast_language(),settings.effective_region()],|r|r.get(0)).map_err(|e|e.to_string())?;
+        if !compatible {return Err("Broadcast language or news region changed. Prepare a new broadcast.".into());}
         let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e|e.to_string())?;
         let exists:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM content_broadcasts WHERE id=?1)",[id],|r|r.get(0)).map_err(|e|e.to_string())?;
         let consumed:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM playback_receipts WHERE broadcast_id=?1 UNION SELECT 1 FROM content_sources c JOIN news_usage u ON u.article_id=c.article_id WHERE c.broadcast_id=?1)",[id],|r|r.get(0)).map_err(|e|e.to_string())?;
@@ -146,13 +150,32 @@ pub async fn broadcast_complete(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn changed_language_or_region_rejects_playback_before_consuming_the_recording() {
+        let repository = SettingsRepository::open(Path::new(":memory:")).unwrap();
+        let mut settings = repository.load().unwrap();
+        settings.ui_language = "pl".into();
+        settings.news_region = "PL".into();
+        repository.save(&settings).unwrap();
+        seed(&repository, 1);
+        settings.ui_language = "en".into();
+        repository.save(&settings).unwrap();
+        assert!(claim(&repository, "1").is_err());
+        settings.ui_language = "pl".into();
+        settings.news_region = "US".into();
+        repository.save(&settings).unwrap();
+        assert!(claim(&repository, "1").is_err());
+        settings.news_region = "PL".into();
+        repository.save(&settings).unwrap();
+        claim(&repository, "1").unwrap();
+    }
     const TEXT: &str = "Według wydawcy rozpoczęto program badań naukowych.";
     fn seed(repository: &SettingsRepository, id: i64) {
         let settings = repository.load().unwrap();
         let source = serde_json::json!({"id":id.to_string(),"provider":"fixture","title":TEXT,"url":format!("https://example.org/{id}"),"source":"Fixture","sourceUrl":null,"publishedAt":null,"rawPublicationDate":null,"descriptionHtml":null,"guid":null,"feedUrl":"https://example.org/rss","fetchedAt":chrono::Utc::now().to_rfc3339(),"topics":["Nauka"]});
         let draft = serde_json::json!({"title":"Nauka","segments":[{"topic":"Nauka","text":TEXT,"evidence":[{"source_id":id.to_string(),"quote":TEXT}]}],"limitations":[],"insufficient_material":true});
         repository.with_database(|db|{
-            db.execute("INSERT INTO content_broadcasts VALUES (?1,?2,'Nauka','fixture',?3,1000,'[\"Nauka\"]',?4)",params![id,chrono::Utc::now().to_rfc3339(),TEXT,draft.to_string()]).unwrap();
+            db.execute("INSERT INTO content_broadcasts(id,created_at,title,model,text,estimated_duration_ms,topics_json,draft_json) VALUES (?1,?2,'Nauka','fixture',?3,1000,'[\"Nauka\"]',?4)",params![id,chrono::Utc::now().to_rfc3339(),TEXT,draft.to_string()]).unwrap();
             db.execute("INSERT INTO news_articles(id,provider,canonical_url,metadata_json,first_seen_at) VALUES (?1,'fixture',?2,?3,0)",params![id,format!("https://example.org/{id}"),source.to_string()]).unwrap();
             db.execute("INSERT INTO content_sources VALUES (?1,?1,?2)",params![id,source.to_string()]).unwrap();
             db.execute("INSERT INTO pipeline_preparations VALUES (?1,?2)",params![id,settings_key(&settings)]).unwrap();Ok(())

@@ -194,7 +194,8 @@ impl SpeechService {
         let id: i64 = broadcast_id
             .parse()
             .map_err(|_| "Nieprawidłowy identyfikator scenariusza")?;
-        let voice = voice.unwrap_or(self.repository.load()?.open_ai_voice);
+        let settings = self.repository.load()?;
+        let voice = voice.unwrap_or(settings.open_ai_voice.clone());
         let voice = if format::VOICES.contains(&voice.as_str()) {
             voice
         } else {
@@ -204,6 +205,22 @@ impl SpeechService {
             return Err("Głos nie jest obsługiwany przez Realtime".into());
         }
         let text = self.repository.with_database(|db| {
+            let compatible: bool = db
+                .query_row(
+                    "SELECT language=?2 AND news_region=?3 FROM content_broadcasts WHERE id=?1",
+                    params![
+                        id,
+                        settings.broadcast_language(),
+                        settings.effective_region()
+                    ],
+                    |r| r.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            if !compatible {
+                return Err(
+                    "Broadcast language or news region changed. Prepare a new broadcast.".into(),
+                );
+            }
             db.query_row(
                 "SELECT text FROM content_broadcasts WHERE id=?1",
                 [id],
@@ -235,7 +252,7 @@ impl SpeechService {
                 })
             })
             .collect();
-        let key = format::cache_key(&text, &voice);
+        let key = format::contextual_cache_key(&text, &voice, &settings);
         Ok(Prepared {
             broadcast_id: id,
             text,
@@ -271,6 +288,13 @@ impl SpeechService {
             if bytes.len() > format::MAX_PCM + 44 || format::hash(&bytes) != file_hash {
                 return Err(
                     "Plik cache audio jest uszkodzony; nie ponowiono płatnej generacji".into(),
+                );
+            }
+            if input.key
+                != format::contextual_cache_key(&input.text, &input.voice, &self.repository.load()?)
+            {
+                return Err(
+                    "Broadcast language or news region changed. Prepare a new broadcast.".into(),
                 );
             }
             format::verify(&input.text, &transcript)?;
@@ -870,7 +894,7 @@ mod tests {
             .await
             .unwrap();
         service.repository.with_database(|db|{
-            db.execute("INSERT INTO content_broadcasts SELECT 2,created_at,title,model,text,estimated_duration_ms,topics_json,'broken' FROM content_broadcasts WHERE id=1",[]).unwrap();
+            db.execute("INSERT INTO content_broadcasts(id,created_at,title,model,text,estimated_duration_ms,topics_json,draft_json) SELECT 2,created_at,title,model,text,estimated_duration_ms,topics_json,'broken' FROM content_broadcasts WHERE id=1",[]).unwrap();
             db.execute("INSERT INTO pipeline_preparations VALUES (2,?1)",[crate::recovery::settings_key(&settings)]).unwrap();Ok(())
         }).unwrap();
         let recovered = crate::recovery::restore(&service.repository, &service, &root)
