@@ -85,12 +85,32 @@ mod native {
         let info = CREDUI_INFOW {
             cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
             hwndParent: HWND(hwnd as *mut _),
-            pszCaptionText: w!("AraBrief — klucz OpenAI"),
-            pszMessageText: w!(
-                "W polu hasła wpisz klucz OpenAI API. Nazwę użytkownika pozostaw bez zmian. Klucz zostanie zapisany wyłącznie w Windows Credential Manager."
-            ),
+            pszCaptionText: if crate::settings::interface_is_english() {
+                w!("AraBrief — OpenAI key")
+            } else {
+                w!("AraBrief — klucz OpenAI")
+            },
+            pszMessageText: if crate::settings::interface_is_english() {
+                w!(
+                    "Enter your OpenAI API key in the password field. Leave the username unchanged. The key will be stored exclusively in Windows Credential Manager."
+                )
+            } else {
+                w!(
+                    "W polu hasła wpisz klucz OpenAI API. Nazwę użytkownika pozostaw bez zmian. Klucz zostanie zapisany wyłącznie w Windows Credential Manager."
+                )
+            },
             ..Default::default()
         };
+        let previous_language = unsafe { windows::Win32::Globalization::GetThreadUILanguage() };
+        unsafe {
+            windows::Win32::Globalization::SetThreadUILanguage(
+                if crate::settings::interface_is_english() {
+                    0x0409
+                } else {
+                    0x0415
+                },
+            );
+        }
         let result = unsafe {
             CredUIPromptForCredentialsW(
                 Some(&info),
@@ -107,6 +127,9 @@ mod native {
                     | CREDUI_FLAGS_EXCLUDE_CERTIFICATES,
             )
         };
+        unsafe {
+            windows::Win32::Globalization::SetThreadUILanguage(previous_language);
+        }
         if result == ERROR_CANCELLED {
             return Ok(false);
         }

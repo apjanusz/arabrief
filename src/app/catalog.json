@@ -1,0 +1,2314 @@
+{
+  "ui_3d9d03d320": {
+    "pl": "Gotowe",
+    "en": "Done"
+  },
+  "ui_df557b52a8": {
+    "pl": "Nie udało się wykonać operacji",
+    "en": "Operation failed"
+  },
+  "ui_8fcbd2b189": {
+    "pl": "Informacja",
+    "en": "Information"
+  },
+  "ui_ee4c2aeb43": {
+    "pl": "Czas na Twój przegląd świata",
+    "en": "Time for your world briefing"
+  },
+  "ui_ee5454ca01": {
+    "pl": "Szukamy wiadomości dla Ciebie",
+    "en": "Finding news for you"
+  },
+  "ui_899bbf5adf": {
+    "pl": "Układamy opowieść z wiadomości",
+    "en": "Turning news into a story"
+  },
+  "ui_7a17f783db": {
+    "pl": "Twój scenariusz nabiera głosu",
+    "en": "Giving your script a voice"
+  },
+  "ui_95fc32aa28": {
+    "pl": "Przywracamy głośność muzyki",
+    "en": "Restoring music volume"
+  },
+  "ui_c212ebe146": {
+    "pl": "Delikatnie ściszamy muzykę",
+    "en": "Gently lowering the music"
+  },
+  "ui_d6d6cb0e24": {
+    "pl": "Sprawdzamy wyjście dźwięku",
+    "en": "Checking audio output"
+  },
+  "ui_002638871e": {
+    "pl": "Łączenie ze studiem",
+    "en": "Connecting to the studio"
+  },
+  "ui_40b8b37f17": {
+    "pl": "Studio niepołączone",
+    "en": "Studio disconnected"
+  },
+  "ui_7c15d292e8": {
+    "pl": "Czekamy na nowe materiały.",
+    "en": "Waiting for new material."
+  },
+  "ui_c12a7f5f10": {
+    "pl": "Przygotowanie nie powiodło się. Termin zostanie pominięty.",
+    "en": "Preparation failed. This broadcast will be skipped."
+  },
+  "ui_7b3bbd1a94": {
+    "pl": "Nagranie czeka na odsłuch",
+    "en": "Recording ready to play"
+  },
+  "ui_30ff0f8ff2": {
+    "pl": "TWÓJ OSOBISTY PRZEGLĄD",
+    "en": "YOUR PERSONAL BRIEFING"
+  },
+  "ui_5aee84b572": {
+    "pl": "Trochę świata.",
+    "en": "A little world."
+  },
+  "ui_741a6fbcf6": {
+    "pl": "Między utworami.",
+    "en": "Between tracks."
+  },
+  "ui_40dc3650eb": {
+    "pl": "Wiadomości, które Cię ciekawią.",
+    "en": "News that interests you."
+  },
+  "ui_dc4b9d052e": {
+    "pl": "Spokojny głos. Twoja muzyka w tle.",
+    "en": "A calm voice. Your music in the background."
+  },
+  "ui_965a7eb80f": {
+    "pl": "Zatrzymaj audycję",
+    "en": "Stop broadcast"
+  },
+  "ui_5567fcf35e": {
+    "pl": "Wznów",
+    "en": "Resume"
+  },
+  "ui_b410a9a1e6": {
+    "pl": "Pauza",
+    "en": "Pause"
+  },
+  "ui_e3db935123": {
+    "pl": "Wznów, gdy chcesz wrócić do audycji.",
+    "en": "Resume when you are ready to return to the broadcast."
+  },
+  "ui_a2d7530804": {
+    "pl": "Następna audycja powstaje w tle.",
+    "en": "The next broadcast is being prepared in the background."
+  },
+  "ui_92f6303a9f": {
+    "pl": "Pierwsze przygotowanie użyje płatnego API OpenAI.",
+    "en": "Initial preparation uses the paid OpenAI API."
+  },
+  "ui_13ba8edb6c": {
+    "pl": "Konfiguracja odsłuchu",
+    "en": "Playback settings"
+  },
+  "ui_d4eb518bd3": {
+    "pl": "MUZYKA W TLE",
+    "en": "BACKGROUND MUSIC"
+  },
+  "ui_1d1791615b": {
+    "pl": "Wczytywanie źródła…",
+    "en": "Loading source…"
+  },
+  "ui_c04225899d": {
+    "pl": "Czekamy na połączenie",
+    "en": "Waiting for connection"
+  },
+  "ui_d202b6ac45": {
+    "pl": "Źródło niedostępne",
+    "en": "Source unavailable"
+  },
+  "ui_78d7a5969d": {
+    "pl": "Wybierz swoją muzykę",
+    "en": "Choose your music"
+  },
+  "ui_f04358e8ef": {
+    "pl": "Odśwież sesje i wybierz aktywne źródło.",
+    "en": "Refresh sessions and select an active source."
+  },
+  "ui_d1396edd21": {
+    "pl": "Połącz sesję odtwarzacza, którego słuchasz.",
+    "en": "Connect the player you are listening to."
+  },
+  "ui_79295d84b9": {
+    "pl": "Zmień źródło",
+    "en": "Change source"
+  },
+  "ui_819b2287db": {
+    "pl": "Przejdź do ustawień",
+    "en": "Go to settings"
+  },
+  "ui_b6a9b22c1d": {
+    "pl": "Do następnej audycji",
+    "en": "Next broadcast in"
+  },
+  "ui_578759d225": {
+    "pl": "Twój rytm audycji",
+    "en": "Your broadcast rhythm"
+  },
+  "ui_4f40a78bb0": {
+    "pl": "Jeszcze jeden krok: wybierz źródło muzyki.",
+    "en": "One more step: choose your music source."
+  },
+  "ui_a777efbd5b": {
+    "pl": "O czym ma być audycja? Dodaj pierwszy temat.",
+    "en": "What should the broadcast cover? Add your first topic."
+  },
+  "ui_8cffd7e96b": {
+    "pl": "Wybierz źródło",
+    "en": "Choose source"
+  },
+  "ui_b5d10c506a": {
+    "pl": "Na warsztacie",
+    "en": "In production"
+  },
+  "ui_ab1d623774": {
+    "pl": "Gotowa do odsłuchu",
+    "en": "Ready to play"
+  },
+  "ui_88766fcf90": {
+    "pl": "Czekamy na odpowiedź modelu tekstowego. Kolejne etapy nie zostaną uruchomione.",
+    "en": "Waiting for the text model. No further stages will start."
+  },
+  "ui_7729575dd8": {
+    "pl": "Nie mamy gotowego nagrania. Termin zostanie pominięty; muzyka będzie grała bez zmian.",
+    "en": "No recording is ready. This broadcast will be skipped; your music will keep playing."
+  },
+  "ui_4c03de338e": {
+    "pl": "Najpierw przygotujemy całą audycję. Muzyka ściszy się dopiero na czas odsłuchu.",
+    "en": "We prepare the entire broadcast first. Music is lowered only during playback."
+  },
+  "ui_e18df7670b": {
+    "pl": "Wiadomości",
+    "en": "News"
+  },
+  "ui_375835919d": {
+    "pl": "Odsłuch",
+    "en": "Playback"
+  },
+  "ui_1729fd3613": {
+    "pl": "źródła",
+    "en": "sources"
+  },
+  "ui_d98df7df9f": {
+    "pl": "głos",
+    "en": "voice"
+  },
+  "ui_7a6b8bc611": {
+    "pl": "Przygotuj nową audycję",
+    "en": "Prepare a new broadcast"
+  },
+  "ui_a0f2ffdd18": {
+    "pl": "Odsłuch testowy",
+    "en": "Test playback"
+  },
+  "ui_b5d473edc6": {
+    "pl": "Nowe przygotowanie korzysta z płatnego API OpenAI.",
+    "en": "New preparation uses the paid OpenAI API."
+  },
+  "ui_cefd22aff9": {
+    "pl": "Ostatnio na antenie",
+    "en": "Recently on air"
+  },
+  "ui_707a72ac3a": {
+    "pl": "ODSŁUCH ZAKOŃCZONY",
+    "en": "PLAYBACK COMPLETE"
+  },
+  "ui_3bee5c2927": {
+    "pl": "Tu usłyszysz więcej",
+    "en": "More to hear here"
+  },
+  "ui_0c4cca90e7": {
+    "pl": "Po pierwszym odsłuchu pojawi się tutaj Twoja zakończona audycja.",
+    "en": "Your completed broadcast will appear here after the first playback."
+  },
+  "ui_7947fdba6d": {
+    "pl": "Odsłuchy z bieżącej sesji aplikacji.",
+    "en": "Broadcasts played during this app session."
+  },
+  "ui_ef87818cc8": {
+    "pl": "Test wyjścia dźwięku",
+    "en": "Test audio output"
+  },
+  "ui_3b3af7f38e": {
+    "pl": "Krótkie nagranie testowe · bez API",
+    "en": "Short test recording · no API"
+  },
+  "ui_815217fb6b": {
+    "pl": "TWOJE CZĘSTOTLIWOŚCI",
+    "en": "YOUR FREQUENCIES"
+  },
+  "ui_e14d492efa": {
+    "pl": "To, co Cię interesuje",
+    "en": "What interests you"
+  },
+  "ui_fe14f82d0f": {
+    "pl": "Edytuj tematy",
+    "en": "Edit topics"
+  },
+  "ui_5ea8b01653": {
+    "pl": "Wczytywanie tematów…",
+    "en": "Loading topics…"
+  },
+  "ui_eb3b9a6cc4": {
+    "pl": "Twoje tematy pojawią się po połączeniu z aplikacją.",
+    "en": "Your topics will appear after connecting to the app."
+  },
+  "ui_a18ff2e0fd": {
+    "pl": "Jeszcze cisza. Dodaj tematy, a znajdziemy dla Ciebie wiadomości.",
+    "en": "Quiet for now. Add topics and we will find news for you."
+  },
+  "ui_d0ede73261": {
+    "pl": "Scenariusz i materiały źródłowe",
+    "en": "Script and source material"
+  },
+  "ui_63d23ac161": {
+    "pl": "Rozwiń, aby przeczytać",
+    "en": "Expand to read"
+  },
+  "ui_8ee6d4d493": {
+    "pl": "Brak nazwy źródła w RSS",
+    "en": "No source name in RSS"
+  },
+  "ui_0a3930ffbd": {
+    "pl": "Wpisz temat o długości do 160 bajtów, bez znaków sterujących.",
+    "en": "Enter a topic of up to 160 bytes, without control characters."
+  },
+  "ui_a793a726f4": {
+    "pl": "Ten temat jest już na Twojej liście.",
+    "en": "This topic is already on your list."
+  },
+  "ui_990d037480": {
+    "pl": "Możesz zapisać maksymalnie 30 tematów.",
+    "en": "You can save up to 30 topics."
+  },
+  "ui_aa95cfe466": {
+    "pl": "TWOJA CIEKAWOŚĆ NADAJE TON",
+    "en": "YOUR CURIOSITY SETS THE TONE"
+  },
+  "ui_e73c107b9b": {
+    "pl": "Co Cię",
+    "en": "What"
+  },
+  "ui_e8d0486947": {
+    "pl": "porusza?",
+    "en": "moves you?"
+  },
+  "ui_680d4b2096": {
+    "pl": "Wielkie odkrycia czy małe lokalne historie? Ty wybierasz tematy. My szukamy wiadomości w polskiej edycji Google News.",
+    "en": "Big discoveries or local stories? You choose the topics. We search the Polish edition of Google News."
+  },
+  "ui_faecb08125": {
+    "pl": "Dodaj zainteresowanie",
+    "en": "Add an interest"
+  },
+  "ui_de53f3d9f6": {
+    "pl": "Temat, o którym chcesz usłyszeć",
+    "en": "A topic you would like to hear about"
+  },
+  "ui_177003e983": {
+    "pl": "Zapisywanie…",
+    "en": "Saving…"
+  },
+  "ui_bbe82db82c": {
+    "pl": "Do 30 tematów. Każda zmiana zapisuje się automatycznie.",
+    "en": "Up to 30 topics. Every change is saved automatically."
+  },
+  "ui_117ab5623a": {
+    "pl": "Im bardziej konkretny temat, tym trafniejsze wiadomości. Warto dopisać dziedzinę lub miejsce, które Cię interesuje.",
+    "en": "Specific topics produce more relevant news. Include a field or location that interests you."
+  },
+  "ui_82ffeff9ab": {
+    "pl": "Twoja lista tematów",
+    "en": "Your topic list"
+  },
+  "ui_16b2a87a64": {
+    "pl": "Google News · Polska",
+    "en": "Google News · Poland"
+  },
+  "ui_fad168175a": {
+    "pl": "Twoja lista czeka na połączenie",
+    "en": "Your list is waiting for a connection"
+  },
+  "ui_bede1b1cf3": {
+    "pl": "Wszystko zaczyna się od ciekawości",
+    "en": "It all starts with curiosity"
+  },
+  "ui_b3d737ecfb": {
+    "pl": "Zapisane zainteresowania zobaczysz po połączeniu z aplikacją desktopową.",
+    "en": "Your saved interests will appear after connecting to the desktop app."
+  },
+  "ui_9e0c1a26dc": {
+    "pl": "Dodaj pierwszy temat w formularzu. Z niego zaczniemy układać Twój przegląd świata.",
+    "en": "Add your first topic in the form to start building your world briefing."
+  },
+  "ui_3092410560": {
+    "pl": "Twoje tematy są zapisywane lokalnie.",
+    "en": "Your topics are saved locally."
+  },
+  "ui_744423543c": {
+    "pl": "Google News dostarcza artykuły do kolejki. Rozdziały powstają po otwarciu stron wydawców; niedostępne materiały są pomijane.",
+    "en": "Google News adds articles to the queue. Chapters are created from publishers' pages; unavailable material is skipped."
+  },
+  "ui_3cf5a4f34f": {
+    "pl": "Inny",
+    "en": "Other"
+  },
+  "ui_a18715e38d": {
+    "pl": "Model tekstowy",
+    "en": "Text model"
+  },
+  "ui_3c70d5f050": {
+    "pl": "Identyfikator modelu",
+    "en": "Model identifier"
+  },
+  "ui_445a7b6d40": {
+    "pl": "Wpisz identyfikator modelu obsługującego web_search w Responses API.",
+    "en": "Enter a model identifier supporting web_search in the Responses API."
+  },
+  "ui_bc788b4510": {
+    "pl": "$ tani · $$ średni · $$$ drogi. Koszt tokenów; wyszukiwanie jest płatne dodatkowo.",
+    "en": "$ low · $$ medium · $$$ high. Token costs; search is charged separately."
+  },
+  "ui_5ecbd097b4": {
+    "pl": "Minimalna długość audycji nie może przekraczać maksymalnej.",
+    "en": "The minimum broadcast length cannot exceed the maximum."
+  },
+  "ui_2798a4ec09": {
+    "pl": "TWOJE PREFERENCJE",
+    "en": "YOUR PREFERENCES"
+  },
+  "ui_93b05bafe6": {
+    "pl": "Łączymy się z Twoim studiem…",
+    "en": "Connecting to your studio…"
+  },
+  "ui_e847c899b7": {
+    "pl": "Potrzebujemy połączenia",
+    "en": "Connection required"
+  },
+  "ui_8bdb85d4db": {
+    "pl": "Ustawienia czekają w aplikacji desktopowej AraBrief. Po połączeniu zobaczysz tu swoje źródło muzyki, głos i preferencje audycji.",
+    "en": "Your settings are stored in the AraBrief desktop app. Connect to access your music source, voice and broadcast preferences."
+  },
+  "ui_c1994a4f99": {
+    "pl": "Łączenie…",
+    "en": "Connecting…"
+  },
+  "ui_2e283b6a79": {
+    "pl": "Ponów połączenie",
+    "en": "Reconnect"
+  },
+  "ui_d3356992a8": {
+    "pl": "Sekcje ustawień",
+    "en": "Settings sections"
+  },
+  "ui_1a38c8918f": {
+    "pl": "Źródło muzyki",
+    "en": "Music source"
+  },
+  "ui_4f36ed8eed": {
+    "pl": "Dźwięk",
+    "en": "Sound"
+  },
+  "ui_dbb8249fe8": {
+    "pl": "Głos i model",
+    "en": "Voice and model"
+  },
+  "ui_e9af572d08": {
+    "pl": "Działanie w tle",
+    "en": "Background operation"
+  },
+  "ui_4bfd02264f": {
+    "pl": "Wybierz odtwarzacz, który będzie towarzyszył audycji.",
+    "en": "Choose the player that will accompany your broadcast."
+  },
+  "ui_c8142e6ffb": {
+    "pl": "SESJE WINDOWS",
+    "en": "WINDOWS SESSIONS"
+  },
+  "ui_3fb27eb205": {
+    "pl": "Odświeżanie…",
+    "en": "Refreshing…"
+  },
+  "ui_9b205c3f88": {
+    "pl": "Odśwież listę",
+    "en": "Refresh list"
+  },
+  "ui_f88f7cbfb0": {
+    "pl": "Wybierz sesję audio",
+    "en": "Select an audio session"
+  },
+  "ui_cd942336e6": {
+    "pl": "— sesja niedostępna",
+    "en": "— session unavailable"
+  },
+  "ui_f5352f7883": {
+    "pl": "głośność",
+    "en": "volume"
+  },
+  "ui_746dea9989": {
+    "pl": "Informacje o sesji",
+    "en": "Session details"
+  },
+  "ui_fc8c7c9dd1": {
+    "pl": "Włącz muzykę w swoim odtwarzaczu i odśwież listę. Po ponownym uruchomieniu odtwarzacza wybierz nową sesję.",
+    "en": "Start music in your player and refresh the list. Select a new session after restarting the player."
+  },
+  "ui_005769e358": {
+    "pl": "Dźwięk i przejścia",
+    "en": "Sound and transitions"
+  },
+  "ui_6e500564e2": {
+    "pl": "Muzyka zostaje w tle. Ustaw proporcje, które lubisz.",
+    "en": "Music stays in the background. Choose your preferred balance."
+  },
+  "ui_f795078068": {
+    "pl": "Procent pierwotnej głośności wybranej sesji.",
+    "en": "Percentage of the selected session's original volume."
+  },
+  "ui_9a93085890": {
+    "pl": "Głośność lektora",
+    "en": "Narrator volume"
+  },
+  "ui_d2ccb134de": {
+    "pl": "Niezależny poziom odtwarzanego nagrania.",
+    "en": "Independent recording playback volume."
+  },
+  "ui_e9cdda994b": {
+    "pl": "Czas ściszania",
+    "en": "Fade-out duration"
+  },
+  "ui_97a9418a45": {
+    "pl": "Płynne przejścia, bez pauzowania i zmiany globalnej głośności Windows.",
+    "en": "Smooth transitions without pausing music or changing the global Windows volume."
+  },
+  "ui_84c9d91b92": {
+    "pl": "Krótka chwila z wiadomościami, dopasowana do Ciebie.",
+    "en": "A brief moment of news, tailored to you."
+  },
+  "ui_4f37703e8a": {
+    "pl": "Minimalna długość",
+    "en": "Minimum length"
+  },
+  "ui_e97eac330e": {
+    "pl": "Maksymalna długość",
+    "en": "Maximum length"
+  },
+  "ui_8057db5dd9": {
+    "pl": "Orientacyjny czas. Audycja może być krótsza, jeśli część artykułów lub nagrań jest niedostępna.",
+    "en": "Approximate duration. Broadcasts may be shorter if some articles or recordings are unavailable."
+  },
+  "ui_2b1906e478": {
+    "pl": "Interwał audycji",
+    "en": "Broadcast interval"
+  },
+  "ui_b5a986a17c": {
+    "pl": "Start w Twoim studiu",
+    "en": "Start in your studio"
+  },
+  "ui_ad3db79fc8": {
+    "pl": "Po kliknięciu Start pierwsza audycja zabrzmi po pełnym interwale. Każdy następny interwał zaczyna się po zakończonym odsłuchu.",
+    "en": "After pressing Start, the first broadcast plays after a full interval. Each subsequent interval starts when playback ends."
+  },
+  "ui_08341c2a9d": {
+    "pl": "Głos Twojego studia",
+    "en": "Your studio's voice"
+  },
+  "ui_6eee7b29e3": {
+    "pl": "Głos OpenAI",
+    "en": "OpenAI voice"
+  },
+  "ui_bdfbd033c2": {
+    "pl": "Przygotowanie nowych scenariuszy i nagrań korzysta z płatnego API OpenAI.",
+    "en": "Preparing new scripts and recordings uses the paid OpenAI API."
+  },
+  "ui_87f7cdef2d": {
+    "pl": "Zamknięcie okna ukrywa AraBrief w zasobniku Windows. Harmonogram i odtwarzanie działają dalej.",
+    "en": "Closing the window hides AraBrief in the Windows system tray. Scheduling and playback continue."
+  },
+  "ui_d674e37cc0": {
+    "pl": "Aplikacja uruchomi się w zasobniku po zalogowaniu. Domyślnie wyłączone.",
+    "en": "The app starts in the tray when you sign in. Disabled by default."
+  },
+  "ui_7b2556cc44": {
+    "pl": "Uruchamiaj AraBrief z Windowsem",
+    "en": "Start AraBrief with Windows"
+  },
+  "ui_b072ebf92b": {
+    "pl": "Włącza przygotowanie audycji i płatne API po uruchomieniu aplikacji, także z Windowsem. Pierwsza audycja po pełnym interwale. Domyślnie wyłączone.",
+    "en": "Enables broadcast preparation and paid API calls on app launch, including Windows startup. The first broadcast follows a full interval. Disabled by default."
+  },
+  "ui_62809e6a24": {
+    "pl": "Uruchamiaj harmonogram po otwarciu aplikacji",
+    "en": "Start the schedule when the app opens"
+  },
+  "ui_bf82a5cf26": {
+    "pl": "Aby zakończyć proces i przywrócić głośność muzyki, wybierz „Zakończ aplikację” w menu zasobnika.",
+    "en": "To exit and restore music volume, choose “Quit application” in the tray menu."
+  },
+  "ui_770676d418": {
+    "pl": "Cofnięto niezapisane zmiany.",
+    "en": "Unsaved changes discarded."
+  },
+  "ui_9234a06836": {
+    "pl": "Cofnij",
+    "en": "Discard"
+  },
+  "ui_100a828f42": {
+    "pl": "Błąd obsługi klucza API",
+    "en": "API key error"
+  },
+  "ui_0bb6d13b6f": {
+    "pl": "Połączenie z OpenAI",
+    "en": "OpenAI connection"
+  },
+  "ui_5085ce1fd1": {
+    "pl": "Twój klucz. Bezpiecznie zapisany na tym komputerze.",
+    "en": "Your key. Stored securely on this computer."
+  },
+  "ui_54c69f58ad": {
+    "pl": "Klucz wpiszesz w osobnym, natywnym oknie Windows.",
+    "en": "Enter your key in a separate native Windows dialog."
+  },
+  "ui_68f42d3338": {
+    "pl": "Klucz nie jest wyświetlany w interfejsie ani zapisywany w bazie ustawień.",
+    "en": "The key is never displayed in the interface or stored in the settings database."
+  },
+  "ui_d2cb009435": {
+    "pl": "Zapisz klucz",
+    "en": "Save key"
+  },
+  "ui_9161af0082": {
+    "pl": "Klucz przyjęty przez API",
+    "en": "Key accepted by API"
+  },
+  "ui_12d3378811": {
+    "pl": "Sprawdź konfigurację klucza",
+    "en": "Check key configuration"
+  },
+  "ui_d22cc791a3": {
+    "pl": "Oczekiwanie…",
+    "en": "Waiting…"
+  },
+  "ui_b5047ed4cb": {
+    "pl": "Sprawdź klucz",
+    "en": "Check key"
+  },
+  "ui_ee6c9ef93b": {
+    "pl": "Usunięto klucz z magazynu.",
+    "en": "Key deleted from the credential store."
+  },
+  "ui_d447927cb2": {
+    "pl": "Usuń klucz",
+    "en": "Delete key"
+  },
+  "ui_e36b13cd81": {
+    "pl": "Sprawdź wynik diagnostyki",
+    "en": "Check diagnostic results"
+  },
+  "ui_7372b6bd7a": {
+    "pl": "Sprawdzenie klucza odczytuje metadane modeli. Nie generuje treści i nie potwierdza salda ani uprawnień do generowania.",
+    "en": "The key check reads model metadata. It does not generate content or confirm your balance or generation permissions."
+  },
+  "ui_ba99f878a8": {
+    "pl": "Muzyka zostaje. Świat dołącza.",
+    "en": "The music stays. The world joins in."
+  },
+  "ui_436c0d359e": {
+    "pl": "Wiadomości, które mają dla Ciebie znaczenie.",
+    "en": "News that matters to you."
+  },
+  "ui_0df8acbe18": {
+    "pl": "Przejdź do treści",
+    "en": "Skip to content"
+  },
+  "ui_551a20611b": {
+    "pl": "Twój świat. Na głos.",
+    "en": "Your world. Out loud."
+  },
+  "ui_fcc3d9141f": {
+    "pl": "Główna nawigacja",
+    "en": "Main navigation"
+  },
+  "ui_4339d4622d": {
+    "pl": "Mała przerwa na świat.",
+    "en": "A moment for the world."
+  },
+  "ui_8bc3cd34c6": {
+    "pl": "Aplikacja połączona",
+    "en": "App connected"
+  },
+  "ui_8ac350b6f0": {
+    "pl": "Brak połączenia",
+    "en": "Disconnected"
+  },
+  "ui_b13c58d4c3": {
+    "pl": "Wiadomości w Twoim rytmie.",
+    "en": "News at your pace."
+  },
+  "ui_e548a14180": {
+    "pl": "Wykryto zmianę użytkownika — pozostawiono jego głośność.",
+    "en": "A manual volume change was detected; your volume was preserved."
+  },
+  "ui_7e5e01df28": {
+    "pl": "Przywrócono głośność.",
+    "en": "Volume restored."
+  },
+  "ui_2cc3862ca5": {
+    "pl": "Muzyka ściszona zgodnie z ustawieniami.",
+    "en": "Music lowered according to settings."
+  },
+  "ui_c6f0862667": {
+    "pl": "Nie udało się pobrać sesji audio.",
+    "en": "Could not retrieve audio sessions."
+  },
+  "ui_137d569eef": {
+    "pl": "Brak sesji. Włącz muzykę i odśwież listę.",
+    "en": "No sessions. Start music and refresh the list."
+  },
+  "ui_d934ad54b7": {
+    "pl": "Wybierz jedną sesję audio",
+    "en": "Select one audio session"
+  },
+  "ui_9af160f834": {
+    "pl": "Nazwa niedostępna",
+    "en": "Name unavailable"
+  },
+  "ui_28db85fe1d": {
+    "pl": "Urządzenie:",
+    "en": "Device:"
+  },
+  "ui_0289820769": {
+    "pl": "Ścisz muzykę",
+    "en": "Lower music"
+  },
+  "ui_04729050a5": {
+    "pl": "Przywróć głośność",
+    "en": "Restore volume"
+  },
+  "ui_14f40cf072": {
+    "pl": "Zmienianie głośności…",
+    "en": "Changing volume…"
+  },
+  "ui_887e64fe7d": {
+    "pl": "Lista jest migawką. Ręczna zmiana poziomu w mikserze Windows ma pierwszeństwo przed przywróceniem.",
+    "en": "This list is a snapshot. Manual changes in the Windows mixer take precedence over restoration."
+  },
+  "ui_d640d10b11": {
+    "pl": "Test nagrania",
+    "en": "Test recording"
+  },
+  "ui_5f07efca45": {
+    "pl": "Dwusekundowy plik WAV z dwoma tonami. Test audycji ściszy wybraną muzykę i przywróci ją po końcu nagrania.",
+    "en": "A two-second WAV with two tones. The broadcast test lowers the selected music and restores it after playback."
+  },
+  "ui_a816ef7ea4": {
+    "pl": "Głośność lektora:",
+    "en": "Narrator volume:"
+  },
+  "ui_4350cf41e6": {
+    "pl": "Wyjście wybranej sesji muzycznej (domyślnie: domyślne wyjście Windows)",
+    "en": "Selected music session output (default: Windows default output)"
+  },
+  "ui_fb1e819a08": {
+    "pl": "Odtwórz nagranie",
+    "en": "Play recording"
+  },
+  "ui_7b840a9b7c": {
+    "pl": "Test audycji z muzyką",
+    "en": "Test broadcast with music"
+  },
+  "ui_92380c8468": {
+    "pl": "Zatrzymaj nagranie",
+    "en": "Stop recording"
+  },
+  "ui_6913e08535": {
+    "pl": "Ściszanie muzyki",
+    "en": "Lowering music"
+  },
+  "ui_27dede7268": {
+    "pl": "Nagranie zakończone",
+    "en": "Recording complete"
+  },
+  "ui_09ce3566bb": {
+    "pl": "Błąd odtwarzania",
+    "en": "Playback error"
+  },
+  "ui_5f93dc1ac8": {
+    "pl": "Uruchom aplikację desktopową, aby przetestować dźwięk.",
+    "en": "Launch the desktop app to test audio."
+  },
+  "ui_b178e99389": {
+    "pl": "Zapisano scenariusz i materiały źródłowe.",
+    "en": "Script and source material saved."
+  },
+  "ui_a2917f632f": {
+    "pl": "Scenariusz testowej audycji",
+    "en": "Test broadcast script"
+  },
+  "ui_602eaa1038": {
+    "pl": "Wybieramy trzy najstarsze dostępne artykuły z kolejki. Każdy rozdział korzysta z osobnego żądania OpenAI z odczytem strony. Generowanie korzysta z płatnego API. Klucz ustawisz w natywnym magazynie Windows.",
+    "en": "We select the three oldest available queued articles. Each chapter uses a separate OpenAI request with page access. Generation uses the paid API. Set your key in the native Windows credential store."
+  },
+  "ui_ba3f7a6017": {
+    "pl": "Model tekstowy (Responses API i Structured Outputs)",
+    "en": "Text model (Responses API and Structured Outputs)"
+  },
+  "ui_c9f1bee525": {
+    "pl": "Materiały:",
+    "en": "Material:"
+  },
+  "ui_1202903bef": {
+    "pl": ". Do trzech rozdziałów po polsku z treści artykułów. Niedostępne materiały są pomijane.",
+    "en": ". Up to three Polish chapters from article content. Unavailable material is skipped."
+  },
+  "ui_47726e1cfd": {
+    "pl": "Wygeneruj testową audycję",
+    "en": "Generate test broadcast"
+  },
+  "ui_265d9f4e49": {
+    "pl": "· szacunkowo",
+    "en": "· approximately"
+  },
+  "ui_aef7ce5393": {
+    "pl": "s przy 140 słowach/min (bez TTS)",
+    "en": "s at 140 words/min (without TTS)"
+  },
+  "ui_849c26d9a0": {
+    "pl": "Powiązane źródła",
+    "en": "Related sources"
+  },
+  "ui_f2b75e5cf0": {
+    "pl": "Cytaty źródłowe dla fragmentów scenariusza",
+    "en": "Source quotations for script segments"
+  },
+  "ui_94e2e16239": {
+    "pl": "Źródło",
+    "en": "Source"
+  },
+  "ui_b63e623961": {
+    "pl": "Zapisano scenariusz i źródła w SQLite. Nie odtworzono audycji ani nie oznaczono jej jako wyemitowanej.",
+    "en": "Script and sources saved in SQLite. The broadcast was neither played nor marked as aired."
+  },
+  "ui_53656b67ea": {
+    "pl": "Wiadomości — diagnostyka RSS",
+    "en": "News — RSS diagnostics"
+  },
+  "ui_4a38ed0e9b": {
+    "pl": "Google News · język polski · Polska. Pobieramy metadane i dostępny opis RSS, bez pełnej treści artykułów.",
+    "en": "Google News · Polish · Poland. We retrieve metadata and available RSS descriptions, without full article content."
+  },
+  "ui_6d58a44373": {
+    "pl": "Tematy — jeden w każdym wierszu (maksymalnie 30)",
+    "en": "Topics — one per line (up to 30)"
+  },
+  "ui_553dd7d34b": {
+    "pl": "Pobierz wiadomości",
+    "en": "Fetch news"
+  },
+  "ui_f2e4bdba25": {
+    "pl": "Zapisz tematy",
+    "en": "Save topics"
+  },
+  "ui_4683ea9e7a": {
+    "pl": "Artykuły dostępne do nowego scenariusza:",
+    "en": "Articles available for a new script:"
+  },
+  "ui_1c0c7026b5": {
+    "pl": ". Odpytano tematów:",
+    "en": ". Topics queried:"
+  },
+  "ui_f61b53c1c1": {
+    "pl": ". Pozostałe wyniki mogą pochodzić z pamięci SQLite.",
+    "en": ". Other results may come from SQLite storage."
+  },
+  "ui_7f94264e03": {
+    "pl": "— następne pobranie nie wcześniej niż",
+    "en": "— next fetch no earlier than"
+  },
+  "ui_b0a70650c6": {
+    "pl": "(wyniki mogą być nieaktualne)",
+    "en": "(results may be outdated)"
+  },
+  "ui_a2187f85f3": {
+    "pl": "Brak źródła w RSS",
+    "en": "No source in RSS"
+  },
+  "ui_72bf7a7c6a": {
+    "pl": "Tematy:",
+    "en": "Topics:"
+  },
+  "ui_ba8172dc04": {
+    "pl": "· Pobrano:",
+    "en": "· Fetched:"
+  },
+  "ui_e919fb1cb8": {
+    "pl": "Opis i metadane źródłowe RSS",
+    "en": "RSS description and source metadata"
+  },
+  "ui_8c479bcfde": {
+    "pl": "Opis jest wyświetlany jako tekst. Może zawierać tylko powtórzony nagłówek lub odnośniki; nie jest pełnym artykułem.",
+    "en": "Descriptions are displayed as text. They may contain only a repeated headline or links, rather than the full article."
+  },
+  "ui_dc36ad02dc": {
+    "pl": "Źródłowy URL:",
+    "en": "Source URL:"
+  },
+  "ui_c70717b3b0": {
+    "pl": "Surowa data:",
+    "en": "Raw date:"
+  },
+  "ui_3bbae77158": {
+    "pl": "Kanał:",
+    "en": "Feed:"
+  },
+  "ui_eb35320a0e": {
+    "pl": "Brak niewykorzystanych wyników. Sprawdź statusy tematów; pusty wynik nie oznacza, że pełne artykuły zostały przeanalizowane.",
+    "en": "No unused results. Check topic statuses; an empty result does not mean full articles were analysed."
+  },
+  "ui_9f623dcaef": {
+    "pl": "Podgląd nie zapisuje użycia w audycji. Limit: 5 minut na temat i co najmniej minuta pomiędzy partiami nowych zapytań.",
+    "en": "Preview does not record broadcast usage. Limits: 5 minutes per topic and at least one minute between new query batches."
+  },
+  "ui_aa3f3f2672": {
+    "pl": "Zapisane ustawienia i klucz API",
+    "en": "Saved settings and API key"
+  },
+  "ui_fe2374a15d": {
+    "pl": "Źródło:",
+    "en": "Source:"
+  },
+  "ui_c7278b3025": {
+    "pl": ". Interwał:",
+    "en": ". Interval:"
+  },
+  "ui_80c573f25a": {
+    "pl": "min. Muzyka:",
+    "en": "min. Music:"
+  },
+  "ui_24cfebfe32": {
+    "pl": "% oryginału. Fade:",
+    "en": "% of original. Fade:"
+  },
+  "ui_96ed917c24": {
+    "pl": "s. Audycja:",
+    "en": "s. Broadcast:"
+  },
+  "ui_a6e8d5b0a3": {
+    "pl": "min. Głos:",
+    "en": "min. Voice:"
+  },
+  "ui_ff5a6fffa7": {
+    "pl": ". Autostart:",
+    "en": ". Autostart:"
+  },
+  "ui_617c9a0674": {
+    "pl": "włączony",
+    "en": "enabled"
+  },
+  "ui_9a0ea78dd2": {
+    "pl": "wyłączony",
+    "en": "disabled"
+  },
+  "ui_75faab64a1": {
+    "pl": "Zapisano wybrane źródło i głośność lektora.",
+    "en": "Selected source and narrator volume saved."
+  },
+  "ui_12030cd2e3": {
+    "pl": "Zapisz źródło i głośność lektora",
+    "en": "Save source and narrator volume"
+  },
+  "ui_3a4e22a087": {
+    "pl": "Klucz wpiszesz w natywnym oknie Windows. „Sprawdź klucz” wysyła do OpenAI żądanie metadanych modeli, bez generowania treści. Test nie potwierdza dostępnych środków ani uprawnień do generowania.",
+    "en": "Enter the key in a native Windows dialog. “Check key” requests model metadata from OpenAI without generating content. It does not confirm available funds or generation permissions."
+  },
+  "ui_189fdbd771": {
+    "pl": "widoczny na liście",
+    "en": "listed"
+  },
+  "ui_190fb46214": {
+    "pl": "nie znaleziono na liście",
+    "en": "not listed"
+  },
+  "ui_0f4e974ff0": {
+    "pl": "Odczytano istniejące nagranie z cache, bez wywołania API.",
+    "en": "Loaded an existing recording from cache without an API call."
+  },
+  "ui_1ddff69fb7": {
+    "pl": "Zakończono odtwarzanie.",
+    "en": "Playback finished."
+  },
+  "ui_644b0e2811": {
+    "pl": "Audio audycji",
+    "en": "Broadcast audio"
+  },
+  "ui_c77425d535": {
+    "pl": "Głos wygenerowany przez AI · gpt-realtime-2.1-mini. Bez mikrofonu. Nowe nagranie korzysta z płatnego API. W razie błędu lub niezgodności transkrypcji nie będzie automatycznej ponownej próby.",
+    "en": "AI-generated voice · gpt-realtime-2.1-mini. No microphone. New recordings use the paid API. Errors or transcript mismatches do not trigger automatic retries."
+  },
+  "ui_d478e46b24": {
+    "pl": "Głos",
+    "en": "Voice"
+  },
+  "ui_00b355a358": {
+    "pl": "Zgłoszono anulowanie generowania…",
+    "en": "Cancellation requested…"
+  },
+  "ui_bbac7ce1a4": {
+    "pl": "Anuluj generowanie",
+    "en": "Cancel generation"
+  },
+  "ui_882569b055": {
+    "pl": "Odtwórz audio",
+    "en": "Play audio"
+  },
+  "ui_3f8fdd5ca0": {
+    "pl": "Plik:",
+    "en": "File:"
+  },
+  "ui_09e08911de": {
+    "pl": "s · segmenty:",
+    "en": "s · segments:"
+  },
+  "ui_1b9a3399c6": {
+    "pl": "Transkrypcja wyjścia Realtime",
+    "en": "Realtime output transcript"
+  },
+  "ui_95a6f57b99": {
+    "pl": "Transkrypcja pochodzi z odpowiedzi modelu, a nie z niezależnego rozpoznawania WAV. Sprawdź nagranie przed wykorzystaniem w audycji.",
+    "en": "The transcript comes from the model response, not independent WAV recognition. Check the recording before using it in a broadcast."
+  },
+  "ui_4f53532fad": {
+    "pl": "Twoje studio",
+    "en": "Your studio"
+  },
+  "ui_4822b9848d": {
+    "pl": "Zainteresowania",
+    "en": "Interests"
+  },
+  "ui_cbe8870c04": {
+    "pl": "Ustawienia",
+    "en": "Settings"
+  },
+  "ui_e14561a437": {
+    "pl": "Dopasuj AraBrief do swojego rytmu.",
+    "en": "Make AraBrief fit your rhythm."
+  },
+  "ui_2aa4bc2e68": {
+    "pl": "NA TWOICH FALACH",
+    "en": "ON YOUR WAVELENGTH"
+  },
+  "ui_fc61746eca": {
+    "pl": "Bez przerwy w muzyce.",
+    "en": "Without interrupting your music."
+  },
+  "ui_21f5ad0f5b": {
+    "pl": "AraBrief dla Windows",
+    "en": "AraBrief for Windows"
+  },
+  "ui_2f67dddf36": {
+    "pl": "OSOBISTE STUDIO INFORMACJI",
+    "en": "YOUR PERSONAL NEWS STUDIO"
+  },
+  "ui_c01c73065d": {
+    "pl": "Zatrzymywanie…",
+    "en": "Stopping…"
+  },
+  "ui_c21620fb29": {
+    "pl": "Zatrzymaj harmonogram",
+    "en": "Stop schedule"
+  },
+  "ui_8fb3cbc2d7": {
+    "pl": "Harmonogram zatrzymany",
+    "en": "Schedule stopped"
+  },
+  "ui_1ad90c7808": {
+    "pl": "Tworzone przez AI. Wybrane przez Ciebie.",
+    "en": "Created by AI. Chosen by you."
+  },
+  "ui_0256098037": {
+    "pl": "Wymaga uwagi",
+    "en": "Needs attention"
+  },
+  "ui_07da159c03": {
+    "pl": "Zamknij powiadomienie",
+    "en": "Dismiss notification"
+  },
+  "ui_44a8673551": {
+    "pl": "Powiadomienia (F8)",
+    "en": "Notifications (F8)"
+  },
+  "msg_752fcc57bf": {
+    "pl": "Brak nowych, bezpiecznych wiadomości. Muzyka gra dalej; sprawdzimy materiały w kolejnym cyklu.",
+    "en": "No new, safe news. Music keeps playing; we will check again next cycle."
+  },
+  "msg_ffa019a9d6": {
+    "pl": "Termin audycji minął podczas uśpienia. Rozpoczęto nowy interwał.",
+    "en": "The broadcast time passed during sleep. A new interval has started."
+  },
+  "msg_a23b69a1f0": {
+    "pl": "Wybrana sesja audio zniknęła. Wybierz źródło i uruchom harmonogram ponownie.",
+    "en": "The selected audio session disappeared. Choose a source and restart the schedule."
+  },
+  "msg_ecc225d1dc": {
+    "pl": "Nagranie nie było gotowe na czas. Pominięto audycję i rozpoczęto nowy interwał.",
+    "en": "The recording was not ready in time. The broadcast was skipped and a new interval started."
+  },
+  "msg_2cdf5927d1": {
+    "pl": "Błąd harmonogramu",
+    "en": "Schedule error"
+  },
+  "msg_271cbbaa15": {
+    "pl": "Nie można wczytać ustawień",
+    "en": "Could not load settings"
+  },
+  "msg_eabbce1d17": {
+    "pl": "Nie można pobrać sesji audio",
+    "en": "Could not retrieve audio sessions"
+  },
+  "msg_d072024d39": {
+    "pl": "Nie można odczytać stanu odtwarzacza",
+    "en": "Could not read player status"
+  },
+  "msg_08945858a5": {
+    "pl": "Zapis ustawień już trwa.",
+    "en": "Settings are already being saved."
+  },
+  "msg_ad9057ef68": {
+    "pl": "Wybierz dostępną sesję muzyki w ustawieniach.",
+    "en": "Select an available music session in settings."
+  },
+  "msg_38f2a16b03": {
+    "pl": "Harmonogram uruchomiony. Przygotowujemy pierwszą audycję.",
+    "en": "Schedule started. Preparing the first broadcast."
+  },
+  "msg_cf1426fe44": {
+    "pl": "Zapisane źródło muzyki jest niedostępne. Wybierz aktualną sesję w ustawieniach.",
+    "en": "The saved music source is unavailable. Select a current session in settings."
+  },
+  "msg_38dd2af88f": {
+    "pl": "Audycja gotowa do odsłuchu.",
+    "en": "Broadcast ready to play."
+  },
+  "msg_13c4b85dc0": {
+    "pl": "Audycja zakończona.",
+    "en": "Broadcast complete."
+  },
+  "msg_49f709f3d5": {
+    "pl": "Zatrzymano harmonogram i przywrócono głośność.",
+    "en": "Schedule stopped and volume restored."
+  },
+  "msg_ec9472a2ba": {
+    "pl": "Zatrzymano audycję.",
+    "en": "Broadcast stopped."
+  },
+  "msg_16689cf5da": {
+    "pl": "Test dźwięku zakończony.",
+    "en": "Audio test complete."
+  },
+  "msg_0a6e8b2011": {
+    "pl": "Błąd obsługi zasobnika",
+    "en": "System tray error"
+  },
+  "msg_65bdce87b2": {
+    "pl": "Błąd stanu zasobnika",
+    "en": "System tray status error"
+  },
+  "msg_54f6d08f41": {
+    "pl": "Harmonogram już działa lub jest zatrzymywany.",
+    "en": "The schedule is already running or stopping."
+  },
+  "msg_fdaf991a22": {
+    "pl": "Wybierz źródło muzyki.",
+    "en": "Choose a music source."
+  },
+  "msg_0ae644b4f5": {
+    "pl": "Nieprawidłowy interwał audycji.",
+    "en": "Invalid broadcast interval."
+  },
+  "msg_30c07cba73": {
+    "pl": "Wybrana sesja audio zniknęła. Wybierz aktualne źródło i uruchom ponownie.",
+    "en": "The selected audio session disappeared. Select a current source and restart."
+  },
+  "msg_eb220f28fd": {
+    "pl": "Audycja jest już przygotowywana.",
+    "en": "A broadcast is already being prepared."
+  },
+  "msg_2f88705eb9": {
+    "pl": "Wybierz źródło muzyki w ustawieniach.",
+    "en": "Choose a music source in settings."
+  },
+  "msg_ff092c8ab5": {
+    "pl": "Ta audycja została już rozpoczęta. Przygotuj nową.",
+    "en": "This broadcast has already started. Prepare a new one."
+  },
+  "msg_deb8eca125": {
+    "pl": "Pominięto rozdziały z błędem mowy; ich teksty pozostają zapisane.",
+    "en": "Chapters with speech errors were skipped; their texts remain saved."
+  },
+  "msg_cef9aecd4f": {
+    "pl": "Nowe przygotowanie nie powiodło się. Zachowano i wykorzystano poprzednią gotową, nieodtworzoną audycję.",
+    "en": "New preparation failed. The previous ready, unplayed broadcast was preserved and used."
+  },
+  "msg_cba07847ce": {
+    "pl": "Nagranie zostało zatrzymane przed końcem.",
+    "en": "The recording was stopped before it ended."
+  },
+  "msg_2b85f75643": {
+    "pl": "Audycja zakończona. Nie zapisano pełnej historii odsłuchu; zabezpieczenie przed ponownym odtworzeniem pozostaje aktywne.",
+    "en": "Broadcast complete. Full playback history was not saved; replay protection remains active."
+  },
+  "msg_f2274be975": {
+    "pl": "Nie udało się pobrać wiadomości z żadnego źródła. Spróbujemy w kolejnym cyklu.",
+    "en": "Could not fetch news from any source. We will try next cycle."
+  },
+  "msg_e071a00245": {
+    "pl": "Nie ma nowych, bezpiecznych materiałów. Spróbujemy w kolejnym cyklu.",
+    "en": "No new, safe material. We will try next cycle."
+  },
+  "msg_ed03f9ee0a": {
+    "pl": "Lista sesji jest dostępna w aplikacji desktopowej Windows.",
+    "en": "The session list is available in the Windows desktop app."
+  },
+  "msg_c5dc7afba3": {
+    "pl": "Nieprawidłowa odpowiedź cyklu życia aplikacji.",
+    "en": "Invalid application lifecycle response."
+  },
+  "msg_d31a8be4c0": {
+    "pl": "Nieprawidłowy stan harmonogramu.",
+    "en": "Invalid schedule status."
+  },
+  "msg_0b54b45244": {
+    "pl": "Nieprawidłowy identyfikator odtwarzania.",
+    "en": "Invalid playback identifier."
+  },
+  "msg_fa07bcb708": {
+    "pl": "Nieprawidłowe żądanie pauzy.",
+    "en": "Invalid pause request."
+  },
+  "msg_632513dfb2": {
+    "pl": "Nieprawidłowe ustawienia działania w tle.",
+    "en": "Invalid background settings."
+  },
+  "msg_e6c33dae83": {
+    "pl": "Nieprawidłowy język interfejsu.",
+    "en": "Invalid interface language."
+  },
+  "msg_ec0ef17ec4": {
+    "pl": "Ustawienia wymagają aplikacji desktopowej.",
+    "en": "Settings require the desktop app."
+  },
+  "msg_7509c0fb4c": {
+    "pl": "Nieprawidłowa lista rozdziałów audio.",
+    "en": "Invalid audio chapter list."
+  },
+  "msg_c91b5d1eb6": {
+    "pl": "Nieprawidłowe granice rozdziału audio.",
+    "en": "Invalid audio chapter boundaries."
+  },
+  "msg_8b0901a6e7": {
+    "pl": "Najpierw zatrzymaj audycję",
+    "en": "Stop the broadcast first"
+  },
+  "msg_08d5d97c65": {
+    "pl": "Nieprawidłowy zapis odzyskiwania audio",
+    "en": "Invalid audio recovery record"
+  },
+  "msg_0f09cc6ece": {
+    "pl": "Głośność sesji została zmieniona podczas zapisu odzyskiwania",
+    "en": "Session volume changed while saving the recovery record"
+  },
+  "msg_acf39505f8": {
+    "pl": "Wyjście muzyki jest niedostępne. Zapis głośności pozostaje do ponownej próby.",
+    "en": "Music output is unavailable. The volume record is retained for another attempt."
+  },
+  "msg_f35a07aab4": {
+    "pl": "Poprzednia sesja muzyki już nie istnieje. Windows nie pozwala przywrócić jej głośności; nie zmieniono innych sesji.",
+    "en": "The previous music session no longer exists. Windows cannot restore its volume; other sessions were left unchanged."
+  },
+  "msg_0c9aa2c977": {
+    "pl": "Przywrócono głośność muzyki po nieoczekiwanym zakończeniu AraBrief.",
+    "en": "Music volume restored after AraBrief closed unexpectedly."
+  },
+  "msg_3f6bc63d86": {
+    "pl": "Głośność zmieniła się po przerwaniu AraBrief. Zachowano aktualny poziom muzyki.",
+    "en": "Volume changed after AraBrief was interrupted. The current music level was preserved."
+  },
+  "msg_33d35a2505": {
+    "pl": "Proces {pid} (nazwa niedostępna)",
+    "en": "Process {pid} (name unavailable)"
+  },
+  "msg_5ca530691d": {
+    "pl": "Otwórz AraBrief",
+    "en": "Open AraBrief"
+  },
+  "msg_a920806472": {
+    "pl": "Zakończ aplikację",
+    "en": "Quit application"
+  },
+  "msg_15a67cd9b0": {
+    "pl": "Nieprawidłowy stan harmonogramu",
+    "en": "Invalid schedule status"
+  },
+  "msg_45f5e07f1f": {
+    "pl": "OpenAI: niedostępny model. HTTP 404",
+    "en": "OpenAI: model unavailable. HTTP 404"
+  },
+  "msg_0766c55523": {
+    "pl": "Błąd połączenia rozdziału z OpenAI",
+    "en": "Chapter connection to OpenAI failed"
+  },
+  "msg_58bb34d3df": {
+    "pl": "Timeout odczytu artykułu i generowania rozdziału (90 s)",
+    "en": "Article reading and chapter generation timed out (90 s)"
+  },
+  "msg_322f956925": {
+    "pl": "Nie można odczytać Windows Credential Manager",
+    "en": "Could not read Windows Credential Manager"
+  },
+  "msg_86ef18fdd5": {
+    "pl": "Brak dostępnego klucza OpenAI w Windows Credential Manager",
+    "en": "No OpenAI key available in Windows Credential Manager"
+  },
+  "msg_f9565f91df": {
+    "pl": "Nieprawidłowy wpis klucza OpenAI",
+    "en": "Invalid OpenAI key entry"
+  },
+  "msg_24152aded7": {
+    "pl": "Nie można usunąć klucza z Windows Credential Manager",
+    "en": "Could not delete the key from Windows Credential Manager"
+  },
+  "msg_1d2a6db38f": {
+    "pl": "W polu hasła wpisz klucz OpenAI API. Nazwę użytkownika pozostaw bez zmian. Klucz zostanie zapisany wyłącznie w Windows Credential Manager.",
+    "en": "Enter your OpenAI API key in the password field. Leave the username unchanged. The key will be stored exclusively in Windows Credential Manager."
+  },
+  "msg_47771fd770": {
+    "pl": "Nie można otworzyć natywnego okna zapisu klucza",
+    "en": "Could not open the native key dialog"
+  },
+  "msg_7b4de90842": {
+    "pl": "Klucz nie może być pusty ani zawierać białych znaków",
+    "en": "The key cannot be empty or contain whitespace"
+  },
+  "msg_7f52c7d74a": {
+    "pl": "Nie można zapisać klucza w Windows Credential Manager",
+    "en": "Could not save the key in Windows Credential Manager"
+  },
+  "msg_1ded26e0d4": {
+    "pl": "Błąd natywnego magazynu",
+    "en": "Native credential store error"
+  },
+  "msg_835bae7010": {
+    "pl": "Nie można utworzyć klienta diagnostycznego OpenAI",
+    "en": "Could not create the OpenAI diagnostic client"
+  },
+  "msg_ff6fe25d50": {
+    "pl": "Test klucza: timeout 15 s; nie potwierdzono ważności klucza.",
+    "en": "Key test: 15 s timeout; key validity was not confirmed."
+  },
+  "msg_fc71a15850": {
+    "pl": "Test klucza: błąd sieci/TLS; nie uzyskano odpowiedzi OpenAI.",
+    "en": "Key test: network/TLS error; no OpenAI response received."
+  },
+  "msg_495dfa4b75": {
+    "pl": "Nie można odczytać metadanych OpenAI",
+    "en": "Could not read OpenAI metadata"
+  },
+  "msg_1b4cb31fd6": {
+    "pl": "Odpowiedź testu klucza przekracza limit",
+    "en": "Key test response exceeds the limit"
+  },
+  "msg_54becdf56d": {
+    "pl": "Nieprawidłowa odpowiedź testu klucza",
+    "en": "Invalid key test response"
+  },
+  "msg_bc24cbe7c2": {
+    "pl": "OpenAI przyjęło klucz (HTTP 200 na GET /v1/models). Sprawdzenie nie generowało treści. To nie potwierdza salda API, limitów TPM/RPM ani uprawnień do generowania scenariusza lub audio.",
+    "en": "OpenAI accepted the key (HTTP 200 on GET /v1/models). The check did not generate content. It does not confirm API balance, TPM/RPM limits or script/audio generation permissions."
+  },
+  "msg_5d346241d2": {
+    "pl": "Błąd testu klucza",
+    "en": "Key test error"
+  },
+  "msg_aa1c194ca5": {
+    "pl": "Nie udało się odzyskać głośności muzyki. Zapis pozostaje do ponownej próby: {error}",
+    "en": "Could not restore music volume. The record is retained for another attempt: {error}"
+  },
+  "msg_a4115cea70": {
+    "pl": "Nie udało się ukryć AraBrief: {error}",
+    "en": "Could not hide AraBrief: {error}"
+  },
+  "msg_9aa7e96841": {
+    "pl": "Błąd połączenia z Google News RSS",
+    "en": "Google News RSS connection error"
+  },
+  "msg_92b4a38ffa": {
+    "pl": "Błąd odczytu RSS",
+    "en": "RSS read error"
+  },
+  "msg_63750c68ae": {
+    "pl": "Nieprawidłowy dokument RSS",
+    "en": "Invalid RSS document"
+  },
+  "msg_4eb94c9b57": {
+    "pl": "Nieprawidłowa historia audycji",
+    "en": "Invalid broadcast history"
+  },
+  "msg_8c5997e2e6": {
+    "pl": "Nieprawidłowy identyfikator artykułu",
+    "en": "Invalid article identifier"
+  },
+  "msg_3baf4e69ec": {
+    "pl": "Nieznany artykuł",
+    "en": "Unknown article"
+  },
+  "msg_a57f5d3d57": {
+    "pl": "Pobieranie wiadomości już trwa",
+    "en": "News fetch already in progress"
+  },
+  "msg_8668fd2315": {
+    "pl": "Podaj od 1 do 30 tematów",
+    "en": "Enter 1 to 30 topics"
+  },
+  "msg_402712b0a4": {
+    "pl": "Nieprawidłowy temat",
+    "en": "Invalid topic"
+  },
+  "msg_b7883721df": {
+    "pl": "Sprawdź saldo API i rozliczenia właściwej organizacji. Czekanie ani ponawianie nie przywróci środków.",
+    "en": "Check your API balance and billing for the correct organisation. Waiting or retrying will not restore funds."
+  },
+  "msg_6e8cbd53b6": {
+    "pl": "Organizacja osiągnęła limit wykorzystania przyznany przez OpenAI.",
+    "en": "The organisation reached the usage limit granted by OpenAI."
+  },
+  "msg_891a8fe245": {
+    "pl": "Sprawdź zatwierdzony limit w ustawieniach organizacji; może być potrzebny wniosek o jego zwiększenie. To osobny limit od ustawionego budżetu i RPM/TPM.",
+    "en": "Check the approved limit in organisation settings; an increase request may be needed. This is separate from the configured budget and RPM/TPM limits."
+  },
+  "msg_b167adb5a1": {
+    "pl": "Osiągnięto ustawiony limit wydatków organizacji.",
+    "en": "The organisation spending limit was reached."
+  },
+  "msg_bf346c8e0b": {
+    "pl": "Sprawdź limit wydatków organizacji; dostęp wymaga zmiany limitu lub jego resetu. Samo czekanie kilku sekund nie pomoże.",
+    "en": "Check the organisation spending limit; access requires a limit change or reset. Waiting a few seconds will not help."
+  },
+  "msg_a16c9026d5": {
+    "pl": "Osiągnięto limit wydatków projektu.",
+    "en": "The project spending limit was reached."
+  },
+  "msg_5d38abd348": {
+    "pl": "Sprawdź projekt przypisany do klucza oraz jego limity.",
+    "en": "Check the project associated with the key and its limits."
+  },
+  "msg_e8f6fb28f2": {
+    "pl": "Rozliczenia API nie są aktywne.",
+    "en": "API billing is inactive."
+  },
+  "msg_0ebbfcc3d1": {
+    "pl": "Sprawdź konfigurację Billing organizacji używanej przez klucz.",
+    "en": "Check billing configuration for the organisation used by the key."
+  },
+  "msg_8f01b5794e": {
+    "pl": "Klucz API jest nieprawidłowy, wygasł lub został unieważniony.",
+    "en": "The API key is invalid, expired or revoked."
+  },
+  "msg_347e029fd0": {
+    "pl": "Model nie istnieje lub nie jest dostępny dla tego klucza.",
+    "en": "The model does not exist or is unavailable for this key."
+  },
+  "msg_650cc60a52": {
+    "pl": "Sprawdź identyfikator modelu i dostęp projektu do tego modelu.",
+    "en": "Check the model identifier and project access to that model."
+  },
+  "msg_947c2eb407": {
+    "pl": "Materiały przekraczają kontekst modelu.",
+    "en": "The material exceeds the model context window."
+  },
+  "msg_f92542d25a": {
+    "pl": "Zmniejsz liczbę lub długość materiałów; doładowanie konta nie rozwiąże tego błędu.",
+    "en": "Reduce the amount or length of material; adding funds will not resolve this error."
+  },
+  "msg_6cf2420cd4": {
+    "pl": "Brak dostępnej kwoty API (środki lub limit wykorzystania).",
+    "en": "No API quota available (funds or usage limit)."
+  },
+  "msg_6eb5fabf51": {
+    "pl": "Sprawdź saldo, limity i właściwą organizację/projekt. Subskrypcja ChatGPT ma osobne rozliczenia. Ten kod nie rozstrzyga sam, czy skończyły się kredyty, czy osiągnięto limit.",
+    "en": "Check the balance, limits and correct organisation/project. ChatGPT subscriptions are billed separately. This code alone cannot distinguish depleted credits from a usage limit."
+  },
+  "msg_1f6b6d2469": {
+    "pl": "Tempo wysyłania żądań wzrosło zbyt szybko.",
+    "en": "The request rate increased too quickly."
+  },
+  "msg_dd2ef4e4b2": {
+    "pl": "Odczekaj zgodnie z Retry-After i zwiększaj ruch stopniowo. Ten limit może wystąpić nawet poniżej RPM/TPM. Nie ponowiono żądania automatycznie.",
+    "en": "Wait as specified by Retry-After and increase traffic gradually. This can happen below RPM/TPM limits. The request was not retried automatically."
+  },
+  "msg_ccdf9973f9": {
+    "pl": "Przekroczono chwilowy limit zapytań lub tokenów.",
+    "en": "A temporary request or token rate limit was exceeded."
+  },
+  "msg_9cd38d9011": {
+    "pl": "Odczekaj zgodnie z Retry-After i sprawdź limity RPM/TPM modelu. Aplikacja nie ponawia płatnego żądania automatycznie.",
+    "en": "Wait as specified by Retry-After and check the model RPM/TPM limits. The app does not automatically retry paid requests."
+  },
+  "msg_03a73e4bef": {
+    "pl": "Nie udało się uwierzytelnić żądania.",
+    "en": "Request authentication failed."
+  },
+  "msg_04c51a85c2": {
+    "pl": "Sprawdź klucz oraz ograniczenia projektu, np. dozwolone adresy IP. Nie każdy HTTP 401 oznacza błędny tekst klucza.",
+    "en": "Check the key and project restrictions, such as allowed IP addresses. HTTP 401 does not always mean the key text is wrong."
+  },
+  "msg_bf6b1909ef": {
+    "pl": "Klucz nie ma uprawnień do tej operacji.",
+    "en": "The key lacks permission for this operation."
+  },
+  "msg_d995ab2d01": {
+    "pl": "Sprawdź uprawnienia klucza, projektu i modelu.",
+    "en": "Check key, project and model permissions."
+  },
+  "msg_f55c793fea": {
+    "pl": "Brak uprawnień do tego endpointu lub zasobu.",
+    "en": "Access to this endpoint or resource is forbidden."
+  },
+  "msg_342332732b": {
+    "pl": "Sprawdź ograniczenia klucza i projektu. Sam kod 403 nie dowodzi, że klucz jest nieważny.",
+    "en": "Check key and project restrictions. HTTP 403 alone does not prove the key is invalid."
+  },
+  "msg_78948b51cd": {
+    "pl": "Żądanie odrzucono kodem 429, bez rozpoznanego szczegółowego kodu.",
+    "en": "The request was rejected with HTTP 429 without a recognised detailed code."
+  },
+  "msg_9177dcd42f": {
+    "pl": "Sprawdź zarówno Billing, jak i limity RPM/TPM. Nie można jednoznacznie wskazać przyczyny z tej odpowiedzi.",
+    "en": "Check both billing and RPM/TPM limits. The response does not identify a single clear cause."
+  },
+  "msg_1fd32be167": {
+    "pl": "Usługa lub model są chwilowo niedostępne.",
+    "en": "The service or model is temporarily unavailable."
+  },
+  "msg_962f1995ea": {
+    "pl": "Spróbuj później; nie wykonano automatycznej płatnej ponownej próby.",
+    "en": "Try later; no automatic paid retry was made."
+  },
+  "msg_72c0ac3e4d": {
+    "pl": "Żądanie zostało odrzucone.",
+    "en": "The request was rejected."
+  },
+  "msg_c176e00bdc": {
+    "pl": "Sprawdź model, obsługiwane parametry i uprawnienia. Zachowaj request-id do diagnostyki.",
+    "en": "Check the model, supported parameters and permissions. Keep the request ID for diagnostics."
+  },
+  "msg_94d2cc7115": {
+    "pl": "Żądanie pauzy dotyczy innej audycji",
+    "en": "The pause request refers to another broadcast"
+  },
+  "msg_0421f0405b": {
+    "pl": "Odtwarzana audycja została zmieniona",
+    "en": "The playing broadcast changed"
+  },
+  "msg_d323b72825": {
+    "pl": "Stan pauzy został zmieniony przez nowsze żądanie",
+    "en": "A newer request changed the pause state"
+  },
+  "msg_82a126ed7e": {
+    "pl": "Odtwarzanie zostało zatrzymane",
+    "en": "Playback was stopped"
+  },
+  "msg_eb0c40ddeb": {
+    "pl": "Głośność lektora musi być w zakresie 0–1",
+    "en": "Narrator volume must be between 0 and 1"
+  },
+  "msg_a069de1c50": {
+    "pl": "Odtwarzacz jest zajęty lub aplikacja jest zamykana",
+    "en": "The player is busy or the app is closing"
+  },
+  "msg_ef3097e2e7": {
+    "pl": "Wewnętrzny błąd odtwarzacza",
+    "en": "Internal player error"
+  },
+  "msg_aaf515f91e": {
+    "pl": "Brak wskazanego urządzenia wyjściowego Windows",
+    "en": "The specified Windows output device is missing"
+  },
+  "msg_4ae1d8be05": {
+    "pl": "Wewnętrzny błąd odtwarzania",
+    "en": "Internal playback error"
+  },
+  "msg_4c8a87721f": {
+    "pl": "Dozwolone są lokalne zasoby WAV i MP3",
+    "en": "Only local WAV and MP3 resources are allowed"
+  },
+  "msg_1535bf92a3": {
+    "pl": "Zasób poza katalogiem audio",
+    "en": "Resource outside the audio directory"
+  },
+  "msg_40ea6d0083": {
+    "pl": "Nagranie puste lub zbyt długie",
+    "en": "Recording empty or too long"
+  },
+  "msg_0d19335690": {
+    "pl": "Nieprawidłowy identyfikator odtwarzania",
+    "en": "Invalid playback identifier"
+  },
+  "msg_31c9048b23": {
+    "pl": "Nieprawidłowy identyfikator audycji",
+    "en": "Invalid broadcast identifier"
+  },
+  "msg_6aea8dc813": {
+    "pl": "Audycja została już odtworzona lub rozpoczęta. Przygotuj nową audycję.",
+    "en": "This broadcast has already played or started. Prepare a new broadcast."
+  },
+  "msg_7d31518811": {
+    "pl": "Błąd odzyskiwania audycji",
+    "en": "Broadcast recovery error"
+  },
+  "msg_d0330515c5": {
+    "pl": "Błąd rezerwacji audycji",
+    "en": "Broadcast reservation error"
+  },
+  "msg_7f95d0084c": {
+    "pl": "Brak potwierdzenia rozpoczęcia audycji",
+    "en": "Broadcast start was not confirmed"
+  },
+  "msg_5232e65c1a": {
+    "pl": "Błąd zapisu odsłuchu",
+    "en": "Playback history save error"
+  },
+  "msg_03b6398736": {
+    "pl": "Nieprawidłowe ustawienia AraBrief",
+    "en": "Invalid AraBrief settings"
+  },
+  "msg_74dd822468": {
+    "pl": "Baza danych niedostępna",
+    "en": "Database unavailable"
+  },
+  "msg_877eea8b7e": {
+    "pl": "Repozytorium ustawień niedostępne",
+    "en": "Settings repository unavailable"
+  },
+  "msg_b621bcb3eb": {
+    "pl": "Baza ma wersję {version}, aplikacja obsługuje maksymalnie {}. Uruchom zgodną wersję aplikacji; dane pozostawiono bez zmian.",
+    "en": "Database version is {version}; the app supports up to {}. Run a compatible app version; data was left unchanged."
+  },
+  "msg_13728cd0da": {
+    "pl": "Zapis ustawień niedostępny",
+    "en": "Settings save unavailable"
+  },
+  "msg_a65a2e05bc": {
+    "pl": "{error}. Nie udało się cofnąć autostartu: {rollback}",
+    "en": "{error}. Could not roll back autostart: {rollback}"
+  },
+  "msg_57cca9452d": {
+    "pl": "Nieprawidłowy zapis wypowiedzi",
+    "en": "Invalid speech record"
+  },
+  "msg_ce2717a9a5": {
+    "pl": "Transkrypcja Realtime nie odpowiada scenariuszowi. Nie zapisano nagrania i nie ponowiono płatnego żądania.",
+    "en": "The Realtime transcript does not match the script. The recording was not saved and the paid request was not retried."
+  },
+  "msg_efc6e6dc90": {
+    "pl": "Scenariusz pusty lub zbyt długi",
+    "en": "Script empty or too long"
+  },
+  "msg_eb8699e91e": {
+    "pl": "Zbyt długi niepodzielny fragment skryptu",
+    "en": "An indivisible script fragment is too long"
+  },
+  "msg_84a1a0b80d": {
+    "pl": "Zbyt wiele segmentów skryptu",
+    "en": "Too many script segments"
+  },
+  "msg_b819370c3e": {
+    "pl": "Nieprawidłowe lub zbyt długie PCM16",
+    "en": "Invalid or oversized PCM16"
+  },
+  "msg_a5c9ec50c2": {
+    "pl": "Błąd zapisu Realtime",
+    "en": "Realtime write error"
+  },
+  "msg_93d8cc9a5c": {
+    "pl": "Nieprawidłowe zdarzenie Realtime",
+    "en": "Invalid Realtime event"
+  },
+  "msg_02613d57ce": {
+    "pl": "Połączenie Realtime zamknięte przed końcem generowania",
+    "en": "Realtime connection closed before generation finished"
+  },
+  "msg_595dd00eaf": {
+    "pl": "Błąd połączenia Realtime",
+    "en": "Realtime connection error"
+  },
+  "msg_bf70642adf": {
+    "pl": "Zbyt wiele zdarzeń Realtime",
+    "en": "Too many Realtime events"
+  },
+  "msg_b1c3781276": {
+    "pl": "Niespodziewana dodatkowa odpowiedź Realtime",
+    "en": "Unexpected additional Realtime response"
+  },
+  "msg_02ba16c294": {
+    "pl": "Fragment audio nie należy do bieżącej odpowiedzi",
+    "en": "Audio chunk does not belong to the current response"
+  },
+  "msg_c979406fd5": {
+    "pl": "Brak indeksu treści",
+    "en": "Missing content index"
+  },
+  "msg_cd628e8d95": {
+    "pl": "Niespodziewana kolejność fragmentów audio",
+    "en": "Unexpected audio chunk order"
+  },
+  "msg_8be29e0d7f": {
+    "pl": "Audio otrzymane po zakończeniu segmentu",
+    "en": "Audio received after segment completion"
+  },
+  "msg_0675305193": {
+    "pl": "Nieprawidłowy base64 PCM",
+    "en": "Invalid base64 PCM"
+  },
+  "msg_880418f42f": {
+    "pl": "Realtime nie ukończyło segmentu. Nie ponowiono generowania.",
+    "en": "Realtime did not complete the segment. Generation was not retried."
+  },
+  "msg_46c408344a": {
+    "pl": "Niepełne audio lub transkrypcja Realtime",
+    "en": "Incomplete Realtime audio or transcript"
+  },
+  "msg_01d4feae58": {
+    "pl": "Błąd cache segmentów",
+    "en": "Segment cache error"
+  },
+  "msg_4abbb0ca6e": {
+    "pl": "Błąd magazynu klucza",
+    "en": "Credential store error"
+  },
+  "msg_0c77f3e7b1": {
+    "pl": "Nieprawidłowy adres Realtime",
+    "en": "Invalid Realtime address"
+  },
+  "msg_62b70bad31": {
+    "pl": "Nieprawidłowy klucz OpenAI",
+    "en": "Invalid OpenAI key"
+  },
+  "msg_17b841a501": {
+    "pl": "Timeout połączenia Realtime",
+    "en": "Realtime connection timeout"
+  },
+  "msg_6aa7dee638": {
+    "pl": "Nie można połączyć z Realtime: błąd sieci/TLS lub protokołu WebSocket. Nie potwierdzono problemu z kluczem.",
+    "en": "Could not connect to Realtime: network/TLS or WebSocket protocol error. A key problem was not confirmed."
+  },
+  "msg_35dfa78946": {
+    "pl": "Realtime nie potwierdziło wybranego formatu PCM24k i głosu",
+    "en": "Realtime did not confirm the selected PCM24k format and voice"
+  },
+  "msg_c0a49119dd": {
+    "pl": "Nieprawidłowy PCM segmentu",
+    "en": "Invalid segment PCM"
+  },
+  "msg_30fd0262aa": {
+    "pl": "Błąd zadania TTS",
+    "en": "TTS job error"
+  },
+  "msg_33d5b5f9f8": {
+    "pl": "Zadanie TTS jest niedostępne",
+    "en": "TTS job unavailable"
+  },
+  "msg_9c0816f8f3": {
+    "pl": "Błąd klienta TTS",
+    "en": "TTS client error"
+  },
+  "msg_cdd2ecd0bc": {
+    "pl": "Błąd połączenia TTS lub timeout (90 s)",
+    "en": "TTS connection error or timeout (90 s)"
+  },
+  "msg_8ce2a756d7": {
+    "pl": "Błąd odczytu TTS",
+    "en": "TTS read error"
+  },
+  "msg_117e6d8684": {
+    "pl": "Nieprawidłowe PCM TTS",
+    "en": "Invalid TTS PCM"
+  },
+  "msg_4f7a39c78b": {
+    "pl": "Błąd wątku pobierania wiadomości",
+    "en": "News fetch thread error"
+  },
+  "ui_68f67c3982": {
+    "pl": "Zamknij powiadomienie: ",
+    "en": "Dismiss notification: "
+  },
+  "ui_18aaecf73f": {
+    "pl": "Zapisano zmiany.",
+    "en": "Changes saved."
+  },
+  "ui_c5985d99a1": {
+    "pl": "Nie zapisano zmian",
+    "en": "Changes were not saved"
+  },
+  "ui_06608f50b5": {
+    "pl": "Nie zmieniono stanu pauzy",
+    "en": "Pause state was not changed"
+  },
+  "ui_e359b7276d": {
+    "pl": "Harmonogram uruchomiony. Gotowa audycja czeka na termin.",
+    "en": "Schedule started. The ready broadcast is waiting for its scheduled time."
+  },
+  "ui_f780da94e5": {
+    "pl": "Nie uruchomiono harmonogramu",
+    "en": "Schedule did not start"
+  },
+  "ui_bbf2984888": {
+    "pl": "Teraz na Twoich falach",
+    "en": "Now on your wavelength"
+  },
+  "ui_f510066568": {
+    "pl": "Zatrzymywanie audycji…",
+    "en": "Stopping broadcast…"
+  },
+  "ui_c6cd44e5f0": {
+    "pl": "Zmieniamy stan pauzy…",
+    "en": "Changing pause state…"
+  },
+  "ui_3c7446abc0": {
+    "pl": "Audycja jest odtwarzana",
+    "en": "Broadcast playing"
+  },
+  "ui_0f6561b221": {
+    "pl": "Audycja gotowa. Czekamy na termin.",
+    "en": "Broadcast ready. Waiting for the scheduled time."
+  },
+  "ui_6bde2c5542": {
+    "pl": "Gotowe na Twoje tematy",
+    "en": "Ready for your topics"
+  },
+  "ui_d5dcaccc94": {
+    "pl": "Uruchom harmonogram",
+    "en": "Start schedule"
+  },
+  "ui_10f8647bd8": {
+    "pl": "Sesja aktywna",
+    "en": "Session active"
+  },
+  "ui_b823c3fa57": {
+    "pl": "Sesja nieaktywna",
+    "en": "Session inactive"
+  },
+  "ui_8d74addc23": {
+    "pl": "Odliczanie wstrzymane",
+    "en": "Countdown paused"
+  },
+  "ui_5bde2c7cd4": {
+    "pl": "Interwał ",
+    "en": "Interval "
+  },
+  "ui_8663e24ef1": {
+    "pl": "Po uruchomieniu pierwsza audycja za ",
+    "en": "The first broadcast starts in "
+  },
+  "ui_6bb397f6d2": {
+    "pl": " min. Potem każdy pełny interwał liczony jest od końca odsłuchu.",
+    "en": " min. Each full interval then starts when playback ends."
+  },
+  "ui_f9f8079ddf": {
+    "pl": "Dodaj temat",
+    "en": "Add topic"
+  },
+  "ui_b7cdec34de": {
+    "pl": "Nowa audycja",
+    "en": "New broadcast"
+  },
+  "ui_2f5bb80cb7": {
+    "pl": "Etapy przygotowania audycji",
+    "en": "Broadcast preparation stages"
+  },
+  "ui_deca4f8a4b": {
+    "pl": "Przygotuj bez odtwarzania",
+    "en": "Prepare without playback"
+  },
+  "ui_2d14f44ac3": {
+    "pl": "Brak daty",
+    "en": "No date"
+  },
+  "ui_7a06b96a03": {
+    "pl": "Nie wczytano",
+    "en": "Not loaded"
+  },
+  "ui_f2efcf8ca0": {
+    "pl": "Usuń temat: ",
+    "en": "Remove topic: "
+  },
+  "ui_f760c21c4c": {
+    "pl": "Twoja muzyka",
+    "en": "Your music"
+  },
+  "ui_4c05caf016": {
+    "pl": "Muzyka podczas audycji",
+    "en": "Music during broadcasts"
+  },
+  "ui_612027d8e9": {
+    "pl": "Czas przywracania",
+    "en": "Fade-in duration"
+  },
+  "ui_e188d51794": {
+    "pl": "Rytm audycji",
+    "en": "Broadcast rhythm"
+  },
+  "ui_468354ce47": {
+    "pl": "Uruchamianie z Windowsem",
+    "en": "Windows startup"
+  },
+  "ui_91351305d8": {
+    "pl": "Automatyczny start harmonogramu",
+    "en": "Automatic schedule start"
+  },
+  "ui_c7f52c17ec": {
+    "pl": "Masz niezapisane zmiany",
+    "en": "You have unsaved changes"
+  },
+  "ui_e2994c3283": {
+    "pl": "Zapisz ustawienia",
+    "en": "Save settings"
+  },
+  "ui_4160ff9001": {
+    "pl": "Klucz zapisano w bezpiecznym magazynie.",
+    "en": "Key saved in the secure credential store."
+  },
+  "ui_37a6d8a58c": {
+    "pl": "Anulowano zapis klucza.",
+    "en": "Key save cancelled."
+  },
+  "ui_6c488629e9": {
+    "pl": "Klucz odrzucony przez API",
+    "en": "Key rejected by API"
+  },
+  "ui_ef13bdc0c1": {
+    "pl": "Brak zapisanego klucza",
+    "en": "No saved key"
+  },
+  "ui_66afd1216c": {
+    "pl": "Przywracanie muzyki",
+    "en": "Restoring music"
+  },
+  "ui_c32cf1a5f5": {
+    "pl": "Nagranie zatrzymane",
+    "en": "Recording stopped"
+  },
+  "ui_4173d2b514": {
+    "pl": "Generowanie scenariusza…",
+    "en": "Generating script…"
+  },
+  "ui_8cb766f44d": {
+    "pl": "Zapisano tematy.",
+    "en": "Topics saved."
+  },
+  "ui_a1e7ff0d60": {
+    "pl": "Brak poprawnej daty publikacji",
+    "en": "No valid publication date"
+  },
+  "ui_26dfee75a2": {
+    "pl": "Brak opisu w RSS.",
+    "en": "No RSS description."
+  },
+  "ui_51bca98770": {
+    "pl": "Niedozwolone przejście harmonogramu: ",
+    "en": "Invalid schedule transition: "
+  },
+  "ui_8f801b3a88": {
+    "pl": "Dodaj zainteresowania przed uruchomieniem harmonogramu.",
+    "en": "Add interests before starting the schedule."
+  },
+  "ui_d59aec5205": {
+    "pl": "Anulowano przygotowanie audycji.",
+    "en": "Broadcast preparation cancelled."
+  },
+  "ui_4dbd30101d": {
+    "pl": "Dodaj zainteresowania przed przygotowaniem audycji.",
+    "en": "Add interests before preparing a broadcast."
+  },
+  "ui_f09ab3f155": {
+    "pl": "Wznowiono zapisany scenariusz bez ponownego generowania tekstu.",
+    "en": "Resumed the saved script without generating text again."
+  },
+  "ui_f06747dcec": {
+    "pl": "Nie wybrano",
+    "en": "Not selected"
+  },
+  "ui_a67cbbd819": {
+    "pl": "Klucz zapisany w Windows Credential Manager.",
+    "en": "Key stored in Windows Credential Manager."
+  },
+  "ui_6095cd15e5": {
+    "pl": "Anulowano generowanie audio.",
+    "en": "Audio generation cancelled."
+  },
+  "ui_fdb529db04": {
+    "pl": "Zatrzymano nagranie.",
+    "en": "Recording stopped."
+  },
+  "ui_246786b0ca": {
+    "pl": "Generowanie audio…",
+    "en": "Generating audio…"
+  },
+  "ui_afc0b931b7": {
+    "pl": "Wygeneruj audio",
+    "en": "Generate audio"
+  },
+  "ui_c6f4d64762": {
+    "pl": "Generowanie wymaga aplikacji desktopowej.",
+    "en": "Generation requires the desktop app."
+  },
+  "ui_a0cddffc62": {
+    "pl": "Odtwarzacz wymaga aplikacji desktopowej.",
+    "en": "The player requires the desktop app."
+  },
+  "ui_45b8f05fbc": {
+    "pl": "Generowanie audio wymaga aplikacji desktopowej.",
+    "en": "Audio generation requires the desktop app."
+  },
+  "ui_664284064f": {
+    "pl": "Scenariusz",
+    "en": "Script"
+  },
+  "ui_6d90e89084": {
+    "pl": "Nagranie",
+    "en": "Recording"
+  },
+  "ui_b9f5ba9e84": {
+    "pl": "Audycja",
+    "en": "Broadcast"
+  },
+  "ui_51dbdf3d4f": {
+    "pl": "Pobieranie…",
+    "en": "Fetching…"
+  },
+  "ui_e4bb9f1ece": {
+    "pl": "Start",
+    "en": "Start"
+  },
+  "ui_cae7d57bc0": {
+    "pl": "Stop",
+    "en": "Stop"
+  },
+  "ui_2959bb1215": {
+    "pl": "tak",
+    "en": "yes"
+  },
+  "ui_cd5b158f21": {
+    "pl": "nie",
+    "en": "no"
+  },
+  "ui_61b54c5bf4": {
+    "pl": "procent",
+    "en": "percent"
+  },
+  "ui_c6f20ba4e4": {
+    "pl": "nagranie gotowe",
+    "en": "recording ready"
+  },
+  "ui_d913882394": {
+    "pl": "brak gotowego nagrania",
+    "en": "no recording ready"
+  },
+  "ui_dfb154029c": {
+    "pl": "trwa przygotowanie",
+    "en": "preparing"
+  },
+  "ui_4c870f0532": {
+    "pl": "W toku",
+    "en": "In progress"
+  },
+  "ui_49285f0029": {
+    "pl": "Anuluj",
+    "en": "Cancel"
+  },
+  "ui_3bcf9f2bf0": {
+    "pl": "RSS",
+    "en": "RSS"
+  },
+  "ui_565339bc4d": {
+    "pl": "OK",
+    "en": "OK"
+  },
+  "ui_0d87a7958f": {
+    "pl": "np. gpt-6-sol",
+    "en": "e.g. gpt-6-sol"
+  },
+  "ui_cb91377303": {
+    "pl": "Lektor AI czyta przygotowany scenariusz po polsku.",
+    "en": "The AI narrator reads the prepared script in Polish."
+  },
+  "ui_098fc88a4f": {
+    "pl": "Interwał {0} min · {1}",
+    "en": "Interval {0} min · {1}"
+  },
+  "ui_201db04224": {
+    "pl": "Po uruchomieniu pierwsza audycja za {0} min. Potem każdy pełny interwał liczony jest od końca odsłuchu.",
+    "en": "The first broadcast starts in {0} min. Each full interval then starts when playback ends."
+  },
+  "ui_1fdfd79697": {
+    "pl": "Usuń temat: {0}",
+    "en": "Remove topic: {0}"
+  },
+  "ui_9be23b3d7f": {
+    "pl": "Zamknij powiadomienie: {0}",
+    "en": "Dismiss notification: {0}"
+  },
+  "native_74fb071752": {
+    "pl": "Aplikacja jest zamykana",
+    "en": "The app is closing"
+  },
+  "native_ae9d3b3c98": {
+    "pl": "Wymagany jest Windows",
+    "en": "Windows is required"
+  },
+  "native_c5fa9c9211": {
+    "pl": "Wątek audio jest niedostępny",
+    "en": "Audio worker unavailable"
+  },
+  "native_18cc44ef2e": {
+    "pl": "Wątek audio został zatrzymany",
+    "en": "Audio worker stopped"
+  },
+  "native_ea0db432a9": {
+    "pl": "Trwa odtwarzanie audycji",
+    "en": "Broadcast playing"
+  },
+  "native_2feb180dc3": {
+    "pl": "Nieprawidłowa sesja lub aplikacja jest zamykana",
+    "en": "Invalid session or application closing"
+  },
+  "native_22f7525ebf": {
+    "pl": "Sesja została odłączona; odśwież listę i wybierz nową sesję",
+    "en": "Session disconnected; select the new session after refreshing"
+  },
+  "native_234c350dfe": {
+    "pl": "Sesja wygasła",
+    "en": "Session expired"
+  },
+  "native_6cf0b2fe96": {
+    "pl": "Nieprawidłowy identyfikator sesji audio",
+    "en": "Invalid audio session identity"
+  },
+  "native_93d3b10828": {
+    "pl": "Odzyskiwanie audio nie zostało zainicjalizowane",
+    "en": "Audio recovery not initialized"
+  },
+  "native_ed0944dce4": {
+    "pl": "Sesja jest niedostępna; odśwież listę i wybierz ponownie",
+    "en": "Session no longer available; refresh and select again"
+  },
+  "native_6b4786db5a": {
+    "pl": "Nieprawidłowy token przywracania",
+    "en": "Invalid restoration token"
+  },
+  "native_70d566e849": {
+    "pl": "Wyjście audio jest niedostępne podczas odczytu listy: {error}",
+    "en": "Audio endpoint unavailable during enumeration: {error}"
+  },
+  "native_c50271b7d7": {
+    "pl": "Przywracanie audio podczas zamykania nie powiodło się; zachowano zapis głośności: {error}",
+    "en": "Audio restoration at shutdown failed; snapshot retained: {error}"
+  },
+  "native_8bb71a869b": {
+    "pl": "Aplikacja nie jest zamykana",
+    "en": "The app is not closing"
+  },
+  "native_5591d8c185": {
+    "pl": "Brak okna aplikacji",
+    "en": "App window unavailable"
+  },
+  "native_33aaa0f651": {
+    "pl": "Brak klucza w Windows Credential Manager.",
+    "en": "No key in Windows Credential Manager."
+  },
+  "native_f5bdc2d7b9": {
+    "pl": "Brak listy modeli w odpowiedzi testu klucza",
+    "en": "No model list in the key test response"
+  },
+  "native_1c4b4207fa": {
+    "pl": "Wyczerpano kredyty API.",
+    "en": "API credits exhausted."
+  },
+  "native_6d19bf7cd8": {
+    "pl": "Zapisz aktualny klucz w Windows Credential Manager.",
+    "en": "Save your current key in Windows Credential Manager."
+  },
+  "native_de39bbfd29": {
+    "pl": "Zwalnianie zasobów odtwarzania nie powiodło się: {error}",
+    "en": "Playback cleanup failed: {error}"
+  },
+  "native_29cfa86a92": {
+    "pl": "Przywracanie muzyki: {error}",
+    "en": "Restoring music: {error}"
+  },
+  "native_ce9f65c32f": {
+    "pl": "Nagranie przekracza 64 MiB",
+    "en": "Recording exceeds 64 MiB"
+  },
+  "native_e5929657a5": {
+    "pl": "Brak katalogu danych",
+    "en": "Data directory unavailable"
+  },
+  "native_4fb3ee0d33": {
+    "pl": "Timeout zapisu Realtime",
+    "en": "Realtime write timeout"
+  },
+  "native_d5f13afe0b": {
+    "pl": "Anulowano generowanie audio",
+    "en": "Audio generation cancelled"
+  },
+  "native_720633cfa7": {
+    "pl": "Timeout odpowiedzi Realtime",
+    "en": "Realtime response timeout"
+  },
+  "native_0ed43de9cc": {
+    "pl": "Nieoczekiwana ramka Realtime",
+    "en": "Unexpected Realtime frame"
+  },
+  "native_ec81831e3b": {
+    "pl": "Brak identyfikatora odpowiedzi",
+    "en": "Missing response identifier"
+  },
+  "native_50ab878468": {
+    "pl": "Brak identyfikatora audio",
+    "en": "Missing audio identifier"
+  },
+  "native_ce4ec45a8d": {
+    "pl": "Brak indeksu audio",
+    "en": "Missing audio index"
+  },
+  "native_16cb092bd9": {
+    "pl": "Segment audio przekracza limit",
+    "en": "Audio segment exceeds the limit"
+  },
+  "native_56ec0be6ac": {
+    "pl": "Brak transkrypcji audio",
+    "en": "Missing audio transcript"
+  },
+  "native_851adf408b": {
+    "pl": "Transkrypcja przekracza limit",
+    "en": "Transcript exceeds the limit"
+  },
+  "native_d06fbe3e89": {
+    "pl": "Brak transkrypcji Realtime",
+    "en": "Missing Realtime transcript"
+  },
+  "native_eec4524d84": {
+    "pl": "Nagranie przekracza 15 minut",
+    "en": "Recording exceeds 15 minutes"
+  },
+  "native_e30533b63e": {
+    "pl": "Przekroczono limit nagrania",
+    "en": "Recording limit exceeded"
+  },
+  "ui_95a9fe3f70": {
+    "pl": "AraBrief wstrzymany",
+    "en": "AraBrief paused"
+  },
+  "ui_dfb02fecf9": {
+    "pl": "Gotowy",
+    "en": "Ready"
+  },
+  "ui_62c7b94c6c": {
+    "pl": "Przygotowanie",
+    "en": "Preparing"
+  },
+  "ui_01b4b761ef": {
+    "pl": "Odtwarzanie",
+    "en": "Playing"
+  },
+  "ui_740cbf91fe": {
+    "pl": "Wstrzymano",
+    "en": "Paused"
+  },
+  "ui_393832a22c": {
+    "pl": "nieznany",
+    "en": "unknown"
+  },
+  "ui_b30f40d8db": {
+    "pl": "Brak",
+    "en": "None"
+  },
+  "ui_44fb52d2ac": {
+    "pl": "Model tekstowy ",
+    "en": "Text model "
+  },
+  "ui_32679d59c8": {
+    "pl": "Model Realtime: ",
+    "en": "Realtime model: "
+  },
+  "ui_1933d2b5e8": {
+    "pl": "Nie potwierdzono",
+    "en": "Not confirmed"
+  },
+  "ui_6001e54868": {
+    "pl": "Pobieranie",
+    "en": "Fetching"
+  },
+  "ui_22a4a3d788": {
+    "pl": "Anulowano",
+    "en": "Cancelled"
+  },
+  "ui_7f8d132328": {
+    "pl": "Klucz API",
+    "en": "API key"
+  },
+  "ui_2fdf700505": {
+    "pl": "Aktywna",
+    "en": "Active"
+  },
+  "ui_0dbc1d6f74": {
+    "pl": "Nieaktywna",
+    "en": "Inactive"
+  },
+  "ui_66a3e59db0": {
+    "pl": "Przetwarzanie…",
+    "en": "Processing…"
+  },
+  "ui_3d802b4a4c": {
+    "pl": "Zapisano WAV. Tekst transkrypcji odpowiada scenariuszowi po normalizacji.",
+    "en": "WAV saved. The normalised transcript matches the script."
+  },
+  "ui_140efd626b": {
+    "pl": "nie ustalono",
+    "en": "not determined"
+  },
+  "percent": {
+    "pl": "procent",
+    "en": "percent"
+  },
+  "topicExamples": {
+    "pl": "Nauka\nGospodarka",
+    "en": "Science\nEconomy"
+  },
+  "native_windows_required": {
+    "pl": "Wymagany jest Windows",
+    "en": "Windows required"
+  },
+  "native_restore_retry": {
+    "pl": "{error}; ponowna pr?ba przywr?cenia: {retry}",
+    "en": "{error}; restore retry: {retry}"
+  },
+  "native_restore_error": {
+    "pl": "{error}; przywracanie muzyki: {restore}",
+    "en": "{error}; restoring music: {restore}"
+  },
+  "textModelLabel": {
+    "pl": "Model tekstowy",
+    "en": "Text model"
+  },
+  "realtimeModelLabel": {
+    "pl": "Model Realtime",
+    "en": "Realtime model"
+  }
+}

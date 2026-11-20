@@ -5,6 +5,17 @@ fn default_ui_language() -> String {
     "auto".into()
 }
 
+static INTERFACE_ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn interface_is_english() -> bool {
+    INTERFACE_ENGLISH.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_interface_language(preference: &str) {
+    let english = preference == "en" || (preference == "auto" && system_ui_language() != "pl");
+    INTERFACE_ENGLISH.store(english, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub fn system_ui_language() -> &'static str {
     #[cfg(windows)]
@@ -306,6 +317,8 @@ pub async fn settings_save(
             return Err(error);
         }
         apply(&settings, &audio, &player);
+        set_interface_language(&settings.ui_language);
+        crate::background::refresh_language(&app);
         Ok(())
     })
     .await

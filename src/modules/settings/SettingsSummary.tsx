@@ -1,3 +1,4 @@
+import { useCopy } from "../../app/i18n";
 import { useEffect, useState } from "react";
 import { notifications } from "../../app/notifications/notifications";
 import type { AppSettings } from "../../domain/models";
@@ -12,6 +13,7 @@ export function SettingsSummary({ repository, credentials, player, selected, dis
   selected: { id: string; name: string } | null;
   disabled: boolean;
 }) {
+  const copy = useCopy();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -25,25 +27,25 @@ export function SettingsSummary({ repository, credentials, player, selected, dis
   }
   return (
     <details className="mt-6 border-t border-slate-700 pt-5">
-      <summary className="cursor-pointer font-medium">Zapisane ustawienia i klucz API</summary>
-      {settings && <p className="mt-3 text-sm text-slate-400">Źródło: {settings.preferredAudioSource?.name ?? "Nie wybrano"}. Interwał: {settings.intervalMs / 60000} min. Muzyka: {Math.round(settings.duckVolume * 100)}% oryginału. Fade: {settings.fadeOutMs / 1000}/{settings.fadeInMs / 1000} s. Audycja: {settings.broadcastMinDurationMs / 60000}–{settings.broadcastMaxDurationMs / 60000} min. Głos: {settings.openAiVoice}. Autostart: {settings.autoStart ? "włączony" : "wyłączony"}.</p>}
+      <summary className="cursor-pointer font-medium"> {copy("ui_aa3f3f2672")} </summary>
+      {settings && <p className="mt-3 text-sm text-slate-400"> {copy("ui_fe2374a15d")} {settings.preferredAudioSource?.name ?? copy('ui_f06747dcec')} {copy("ui_c7278b3025")} {settings.intervalMs / 60000}  {copy("ui_80c573f25a")} {Math.round(settings.duckVolume * 100)} {copy("ui_24cfebfe32")} {settings.fadeOutMs / 1000}/{settings.fadeInMs / 1000}  {copy("ui_96ed917c24")} {settings.broadcastMinDurationMs / 60000}–{settings.broadcastMaxDurationMs / 60000}  {copy("ui_a6e8d5b0a3")} {settings.openAiVoice} {copy("ui_ff5a6fffa7")} {settings.autoStart ? copy("ui_617c9a0674") : copy("ui_9a0ea78dd2")}.</p>}
       <button type="button" disabled={busy || disabled || !selected || !settings} className="mt-3 rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => {
         const current = await repository.load();
         const next = { ...current, preferredAudioSource: selected, narratorVolume: (await player.getStatus()).volume };
-        await repository.save(next); setSettings(next); return "Zapisano wybrane źródło i głośność lektora.";
-      })}>Zapisz źródło i głośność lektora</button>
-      <p className="mt-4 text-sm text-slate-400">Klucz wpiszesz w natywnym oknie Windows. „Sprawdź klucz” wysyła do OpenAI żądanie metadanych modeli, bez generowania treści. Test nie potwierdza dostępnych środków ani uprawnień do generowania.</p>
+        await repository.save(next); setSettings(next); return copy("ui_75faab64a1");
+      })}> {copy("ui_12030cd2e3")} </button>
+      <p className="mt-4 text-sm text-slate-400"> {copy("ui_3a4e22a087")} </p>
       <div className="mt-3 flex flex-wrap gap-3">
-        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => { if(await credentials.save()) notifications.success("Klucz zapisany w Windows Credential Manager."); else notifications.info("Anulowano zapis klucza."); })}>Zapisz klucz</button>
+        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => { if(await credentials.save()) notifications.success(copy('ui_a67cbbd819')); else notifications.info(copy('ui_37a6d8a58c')); })}> {copy("ui_d2cb009435")} </button>
         <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => {
           const result = await credentials.check();
-          const listed = (value: boolean | null) => value === null ? "nie ustalono" : value ? "widoczny na liście" : "nie znaleziono na liście";
-          const message = `${result.message} Model tekstowy ${result.textModel}: ${listed(result.textModelListed)}. Model Realtime: ${listed(result.realtimeModelListed)}.`;
+          const listed = (value: boolean | null) => value === null ? copy('ui_140efd626b') : value ? copy("ui_189fdbd771") : copy("ui_190fb46214");
+          const message = `${copy(result.message)} ${copy("textModelLabel")} ${result.textModel}: ${listed(result.textModelListed)}. ${copy("realtimeModelLabel")}: ${listed(result.realtimeModelListed)}.`;
           if(result.status === "accepted") notifications.success(message);
           else if(result.status === "rejected") notifications.error(message);
           else notifications.warning(message);
-        })}>Sprawdź klucz</button>
-        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => { await credentials.delete(); return "Usunięto klucz z magazynu."; })}>Usuń klucz</button>
+        })}> {copy("ui_b5047ed4cb")} </button>
+        <button disabled={busy} className="rounded-lg border border-slate-600 px-4 py-2 disabled:opacity-50" onClick={() => void run(async () => { await credentials.delete(); return copy("ui_ee6c9ef93b"); })}> {copy("ui_d447927cb2")} </button>
       </div>
     </details>
   );

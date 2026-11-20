@@ -76,6 +76,9 @@
 .badge-success { background: var(--surface-success); color: var(--text-success); border-color: #2b5344; }
 .badge-working { background: var(--surface-working); color: var(--brand-yellow); border-color: #55462a; }
 .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 22px; }
+.button { max-width: 100%; overflow-wrap: anywhere; }
+.settings-section-intro, .settings-section-body, .hero-copy { min-width: 0; }
+.settings-section-intro h2, .hero-copy h2 { overflow-wrap: break-word; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; border-radius: var(--radius-sm); padding: 11px 16px; font-size: 12px; font-weight: 650; line-height: 1.4; border: 1px solid transparent; }
 .button:active:not(:disabled) { transform: translateY(1px); }
 .button-primary { background: var(--brand-yellow); color: var(--brand-navy); border-color: var(--brand-yellow); }
@@ -125,7 +128,7 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
 .hero h2 span { color: var(--brand-yellow); }
 .hero-copy>p { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 18px; }
 .hero-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 17px; margin-top: 25px; padding-bottom: 27px; }
-.hero-controls .button { min-height: 47px; padding: 12px 20px; flex-shrink: 0; font-size: 13px; }
+.hero-controls .button { min-height: 47px; padding: 12px 20px; flex-shrink: 1; font-size: 13px; }
 .hero-hint { font-size: 10px; line-height: 1.8; color: var(--text-secondary); max-width: 175px; }
 .hero-status { display: flex; align-items: center; gap: 9px; font-size: 10px; color: var(--text-secondary); border-top: 1px solid #364156; padding: 14px 0; margin-top: auto; }
 .studio-rail { display: flex; flex-direction: column; gap: 22px; }

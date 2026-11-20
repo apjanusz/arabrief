@@ -17,6 +17,7 @@ pub fn run() {
                 settings::SettingsRepository::open(&directory.join("settings.sqlite3"))
                     .map_err(std::io::Error::other)?;
             let preferences = repository.load().map_err(std::io::Error::other)?;
+            settings::set_interface_language(&preferences.ui_language);
             let repository = Arc::new(repository);
             let recovery_message = match app.state::<audio::DuckingController>().initialize(repository.clone()) {
                 Ok(message) => message,

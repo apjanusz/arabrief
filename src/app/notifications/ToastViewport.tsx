@@ -4,11 +4,13 @@ import { Icon } from "../components/Icon";
 import { notifications } from "./notifications";
 import type { Notification } from "./notifications";
 import "./toasts.css";
+import { useCopy } from "../i18n";
 
-const labels = { success: "Gotowe", error: "Nie udało się wykonać operacji", warning: "Wymaga uwagi", info: "Informacja" };
+const labels = { success: "ui_3d9d03d320", error: "ui_df557b52a8", warning: "ui_0256098037", info: "ui_8fcbd2b189" };
 const icons = { success: "check", error: "error", warning: "warning", info: "info" } as const;
 
 function Toast({ item, paused }: { item: Notification; paused: boolean }) {
+  const copy = useCopy();
   const remaining = useRef(item.duration);
   useEffect(() => { remaining.current = item.duration; }, [item]);
   useEffect(() => {
@@ -33,15 +35,16 @@ function Toast({ item, paused }: { item: Notification; paused: boolean }) {
   return <li className={`toast toast-${item.kind} ${item.closing ? "toast-closing" : ""}`}>
     <span className="toast-icon"><Icon name={icons[item.kind]} size={19}/></span>
     <div className="toast-content" role={item.kind === "error" ? "alert" : "status"} aria-atomic="true">
-      <strong>{item.title ?? labels[item.kind]}</strong>
-      <p>{item.message}</p>
+      <strong>{item.title ? copy(item.title) : copy(labels[item.kind] as Parameters<typeof copy>[0])}</strong>
+      <p>{copy(item.message)}</p>
     </div>
-    <button type="button" className="icon-button toast-close" disabled={item.closing} aria-label={`Zamknij powiadomienie: ${item.title ?? labels[item.kind]}`} onClick={event => close(event.currentTarget)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); close(event.currentTarget); } }}><Icon name="close" size={16}/></button>
+    <button type="button" className="icon-button toast-close" disabled={item.closing} aria-label={copy("ui_9be23b3d7f").replace('{0}', copy(item.title ?? labels[item.kind]))} onClick={event => close(event.currentTarget)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); close(event.currentTarget); } }}><Icon name="close" size={16}/></button>
   </li>;
 }
 
 /** Mounted once at the application root, outside the layout and hidden views. */
 export function ToastViewport() {
+  const copy = useCopy();
   const items = useSyncExternalStore(notifications.subscribe, notifications.getSnapshot);
   const region = useRef<HTMLElement>(null);
   const [hovered, setHovered] = useState(false);
@@ -61,7 +64,7 @@ export function ToastViewport() {
     return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("blur", visibility); window.removeEventListener("focus", visibility); window.removeEventListener("keydown", shortcut); };
   }, []);
   useEffect(() => { if (!items.length) { setHovered(false); setFocused(false); } }, [items.length]);
-  return createPortal(<section ref={region} className="toast-region" aria-label="Powiadomienia (F8)" onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
+  return createPortal(<section ref={region} className="toast-region" aria-label={copy("ui_44a8673551")} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
     <ol className="toast-stack">{items.map(item => <Toast key={item.id} item={item} paused={hovered || focused || inactive}/>)}</ol>
   </section>, document.body);
 }

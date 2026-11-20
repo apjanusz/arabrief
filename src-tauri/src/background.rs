@@ -18,6 +18,7 @@ pub struct Lifecycle {
     stopped: Mutex<bool>,
     stopped_signal: Condvar,
     toggle: Mutex<Option<MenuItem<tauri::Wry>>>,
+    language_items: Mutex<Option<(MenuItem<tauri::Wry>, MenuItem<tauri::Wry>)>>,
     recovery_message: Mutex<Option<String>>,
 }
 
@@ -44,12 +45,59 @@ pub fn show(app: &tauri::AppHandle) {
     }
 }
 
+pub fn refresh_language(app: &tauri::AppHandle) {
+    let state = app.state::<Arc<Lifecycle>>();
+    let en = crate::settings::interface_is_english();
+    if let Some((open, quit)) = state
+        .language_items
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
+        let _ = open.set_text(if en {
+            "Open AraBrief"
+        } else {
+            "Otwórz AraBrief"
+        });
+        let _ = quit.set_text(if en {
+            "Quit application"
+        } else {
+            "Zakończ aplikację"
+        });
+    }
+}
+
 pub fn setup(app: &tauri::AppHandle, recovery_message: Option<String>) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Otwórz AraBrief", true, None::<&str>)?;
+    let en = crate::settings::interface_is_english();
+    let open = MenuItem::with_id(
+        app,
+        "open",
+        if en {
+            "Open AraBrief"
+        } else {
+            "Otwórz AraBrief"
+        },
+        true,
+        None::<&str>,
+    )?;
     let toggle = MenuItem::with_id(app, "toggle", "Start", false, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Zakończ aplikację", true, None::<&str>)?;
+    let quit = MenuItem::with_id(
+        app,
+        "quit",
+        if en {
+            "Quit application"
+        } else {
+            "Zakończ aplikację"
+        },
+        true,
+        None::<&str>,
+    )?;
     let menu = Menu::with_items(app, &[&open, &toggle, &quit])?;
     let state = app.state::<Arc<Lifecycle>>();
+    *state
+        .language_items
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some((open, quit));
     *state.toggle.lock().unwrap_or_else(|e| e.into_inner()) = Some(toggle);
     *state
         .recovery_message

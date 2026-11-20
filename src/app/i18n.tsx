@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { translate, localizeMessage } from "./localization";
 import type { ReactNode } from "react";
 import type { Language, LanguagePreference } from "../domain/language";
 import { resolveLanguage } from "../domain/language";
@@ -9,19 +10,23 @@ const messages = {
     languageTitle: "Język interfejsu",
     languageDescription: "Wybierz język aplikacji lub użyj języka Windows.",
     languageLabel: "Język",
-    languageHint: "Zmiana obowiązuje po zapisaniu ustawień. Na razie przetłumaczona jest tylko ta sekcja. Język audycji pozostaje bez zmian.",
+    languageHint: "Wybór zostanie zapamiętany po zapisaniu ustawień. Język audycji pozostaje bez zmian.",
     automatic: "Automatycznie",
   },
   en: {
     languageTitle: "Interface language",
     languageDescription: "Choose the app language or use the Windows language.",
     languageLabel: "Language",
-    languageHint: "Changes apply after saving settings. Only this section is translated for now. Broadcast language remains unchanged.",
-    automatic: "Automatycznie",
+    languageHint: "Save settings to remember your selection. Broadcast language remains unchanged.",
+    automatic: "Automatically",
   },
 } as const;
 type TranslationKey = keyof typeof messages.pl;
 const LanguageContext = createContext<Language>("en");
+export function useCopy() {
+  const language = useContext(LanguageContext);
+  return (key: string | null): string => translate(key ?? "", language);
+}
 
 export function LanguageProvider({ preference, children }: { preference: LanguagePreference; children: ReactNode }) {
   const [systemLanguage, setSystemLanguage] = useState<Language>("en");
@@ -31,10 +36,11 @@ export function LanguageProvider({ preference, children }: { preference: Languag
     return () => { active = false; };
   }, []);
   const language = resolveLanguage(preference, systemLanguage);
+  useEffect(() => { document.documentElement.lang = language; }, [language]);
   return <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>;
 }
 
 export function useTranslation() {
   const language = useContext(LanguageContext);
-  return { language, t: (key: TranslationKey): string => messages[language][key] };
+  return { language, locale: language === "pl" ? "pl-PL" : "en-US", message: (text: string) => localizeMessage(text, language), t: (key: TranslationKey): string => messages[language][key] };
 }
