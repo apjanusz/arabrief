@@ -73,5 +73,10 @@ Dokumenty poniżej są po angielsku, z wyjątkiem istniejących notatek o projek
 | Pakowanie i publikowanie | [Wydania](docs/releases.md) |
 | Pomiary i porównania historyczne | [Wydajność](docs/performance.md) |
 | Notatki wizualne po polsku | [Projekt interfejsu](docs/ui-design.md) |
+| Historia opublikowanych wydań | [Changelog](CHANGELOG.md) |
+| Zgłaszanie błędów i propozycji zmian | [Współpraca](CONTRIBUTING.md) |
+| Odpowiedzialne zgłaszanie podatności | [Zasady bezpieczeństwa](SECURITY.md) |
+| Licencja projektu | [Licencja MIT](LICENSE) |
+| Licencje zależności i przegląd zasobów | [Przegląd licencyjny](docs/licensing.md) |
 
 Stos projektu: **Tauri 2, React, TypeScript, Vite, Tailwind CSS i Rust**. Aplikacja działa na komputerze użytkownika bez własnego backendu serwerowego projektu.

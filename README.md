@@ -71,5 +71,10 @@ The current speech adapter uses `gpt-4o-mini-tts`. OpenAI has announced its shut
 | Packaging and publishing | [Releases](docs/releases.md) |
 | Measurements and historical comparisons | [Performance](docs/performance.md) |
 | Visual design notes, in Polish | [UI design](docs/ui-design.md) |
+| Published release history | [Changelog](CHANGELOG.md) |
+| Bug reports and proposed changes | [Contributing](CONTRIBUTING.md) |
+| Responsible vulnerability reporting | [Security policy](SECURITY.md) |
+| Project license | [MIT License](LICENSE) |
+| Dependency terms and asset review | [Licensing review](docs/licensing.md) |
 
 Built with **Tauri 2, React, TypeScript, Vite, Tailwind CSS, and Rust**. The application runs on the desktop without a project-hosted server backend.
