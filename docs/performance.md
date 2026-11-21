@@ -1,99 +1,77 @@
-> Aktualizacja limitów RSS: obecny adapter używa jednego pracownika i trwałych przerw 5 minut na temat / minuta między partiami. Poniższe porównania równoległości są historyczne i nie opisują bieżącej polityki pobierania.
+# Performance and diagnostics
 
-# Wydajność przygotowania AraBrief
+[Architecture](architecture.md) · [Broadcast pipeline](broadcast-pipeline.md) · [Development](development.md)
 
-## Zakres aktualnego kodu
+## Current execution model
 
-Po cofnięciu wcześniejszych zmian ten checkout zawiera RSS → scenariusz → Realtime
-→ WAV. Nie zawiera adaptera pobierania, rozwiązywania i ekstrakcji pełnych artykułów.
-Obecność migracji 006–007 utrzymuje zgodność danych, nie oznacza aktywnej integracji.
-Ponowne wdrożenie pełnych materiałów wymaga rozstrzygnięcia zakresu; pomiary tej
-nieistniejącej warstwy są niedostępne. Nie należy traktować obecnego RSS jako
-równoważnika pełnych artykułów.
+The current flow retrieves articles natively, generates independent text chapters through Responses API, and synthesizes them through Speech API before playback. RSS uses one HTTP worker and persistent cooldown/backoff; chapter retrieval/generation can use up to three workers. Full article retrieval is implemented.
 
-## Pomiary
+The measurements below retain earlier development observations. They are not a benchmark of the current full pipeline, nor evidence of current Google/OpenAI latency. Realtime timing labels and older concurrency comparisons describe previous implementations.
 
-Każda operacja natywna używa `Instant`, a cały pipeline i etapy IPC używają
-`performance.now()`. ID wpisu identyfikuje pomiar; nie jest ID konta ani klucza.
-Logi nie zawierają promptów, transkrypcji, PCM, odpowiedzi API ani nagłówków autoryzacji.
+## Enable native diagnostics
 
-| Operacja | Co obejmuje |
+Routine `[perf]`, `[pipeline]`, and `[recovery]` console logs are disabled by default, including in development builds. To enable them for a PowerShell development session:
+
+```powershell
+$env:ARABRIEF_DIAGNOSTICS = '1'
+npm run tauri dev
+```
+
+The native switch is read once on first use; restart the process after changing it. Remove the environment variable afterward if it should not apply to later launches:
+
+```powershell
+Remove-Item Env:ARABRIEF_DIAGNOSTICS
+```
+
+The frontend does not print routine pipeline/timing messages to the console. Measurement observers and the scheduler's bounded diagnostic history remain available; `getDiagnostics()` exposes the most recent 100 scheduler entries. Important restoration and lifecycle errors remain reportable without verbose logs. SQLite retains queue/cache state independently of console logging; it is not a full console-history store.
+
+Diagnostics are designed to omit request bodies, credentials, full article text, narration, and PCM. Review metadata and errors before sharing them; see [Privacy](privacy.md#diagnostics).
+
+## Interpreting timings
+
+Native spans use `Instant`; frontend pipeline measurements use `performance.now()`. Each span includes an identifier, operation, elapsed milliseconds, and outcome. Nested timings must not be summed blindly, and parallel spans overlap.
+
+| Operation family | What it measures |
 | --- | --- |
-| `prepare.total` | Całe przygotowanie bez odtwarzania, widziane przez klienta |
-| `prepare.news/content/speech` | Etapy IPC, łącznie z narzutem komunikacji |
-| `broadcast.total` | Ręczne przygotowanie i odtworzenie albo sam odsłuch gotowego audio |
-| `rss.http` | Żądanie i odczyt ograniczonej odpowiedzi |
-| `rss.parse` | Parsowanie i normalizacja kanału |
-| `rss.fetch_queue` | Pobieranie sekwencyjne: do 3 tematów na partię, odstęp HTTP minimum 2 s |
-| `rss.persist_sqlite/candidates_sqlite` | Zapis wyników oraz wybór nowych wiadomości |
-| `rss.total` | RSS wraz z cache/limiterem; `cache_hit` oznacza brak nowych żądań |
-| `content.context_sqlite/request_build` | Historia, źródła i przygotowanie JSON |
-| `content.responses_http/response_parse` | Rzeczywiste wywołanie modelu i parsowanie wyniku |
-| `content.validation/persist_sqlite/total` | Walidacja, transakcyjny zapis i cały serwis |
-| `speech.prepare_sqlite/cache_verify` | Przygotowanie, sprawdzenie pliku, SHA i transkrypcji |
-| `realtime.connect_credentials_tls/session_setup` | Połączenie i konfiguracja Realtime |
-| `realtime.segment_audio_transcript` | Pojedyncza odpowiedź audio wraz z walidacją |
-| `speech.persist_wav_sqlite/total` | Zapis WAV i metadanych albo powrót z cache |
+| `prepare.total`, `prepare.news/content/speech` | Preparation as observed by orchestration, including IPC overhead |
+| `broadcast.total` | Preparation/listening flow or listening to ready audio |
+| `rss.http`, `rss.parse`, `rss.fetch_queue` | Feed retrieval, parsing, and the constrained fetch queue |
+| `rss.persist_sqlite`, `rss.candidates_sqlite`, `rss.total` | Persistence, candidate selection, cache/limiter behavior |
+| `content.context_sqlite`, `content.request_build`, `content.model` | Context construction and content generation |
+| `content.responses_http`, `content.response_parse`, `content.validation`, `content.persist_sqlite`, `content.total` | Instrumented content stages; some labels belong to the earlier RSS-only path |
+| `speech.prepare_sqlite`, `speech.cache_verify`, `speech.model`, `speech.persist_wav_sqlite`, `speech.total` | Speech preparation, cache checks, synthesis, and persistence |
+| `realtime.*` | Historical Realtime adapter spans; not the current Speech API adapter |
 
-Czasy zewnętrznych usług trzeba mierzyć na rzeczywistym uruchomieniu. Czasy
-testowych dostawców nie są opóźnieniami OpenAI. Zagnieżdżonych czasów nie należy
-dodawać do czasu całkowitego, a równoległe żądania częściowo nakładają się w czasie.
+Observe the operations actually emitted for a run instead of assuming every historical label still applies. Local fake-provider timings do not represent external service performance. Fewer serialized bytes do not prove fewer billable tokens or faster API responses.
 
-## Porównanie kontrolowane — 16.11.2026
+## Historical controlled comparison — November 16, 2026
 
-Ten sam zestaw 8 opóźnień `[80, 5, 5, 5, 80, 5, 5, 5]` ms, czterech pracowników,
-pięć powtórzeń, mediana. Zwracane dane i ich kolejność są sprawdzane jako identyczne.
-Jest to odtwarzalny test oczekiwania na sieć, a nie benchmark Google/OpenAI.
+The original comparison used eight simulated delays, `[80, 5, 5, 5, 80, 5, 5, 5]` ms, four workers, five repetitions, and the median. Returned values and order were checked for equality. It compared a fixed batch barrier with a dynamic work queue; it did not call Google or OpenAI.
 
-| Pomiar | Przed | Po |
+| Measurement | Before | After |
 | --- | ---: | ---: |
-| Sztywne partie RSS / dynamiczna kolejka | 161,883 ms | 86,150 ms |
-| JSON źródeł na dwuelementowej fixture | 704 bajty | 468 bajtów |
-| Rzeczywiste generowanie scenariusza i TTS | Nie zmierzono | Dostępne pomiary przy następnym wywołaniu |
-| Pełne artykuły | Brak implementacji | Wymaga decyzji o ponownym wdrożeniu |
+| Simulated batch barrier / dynamic queue | 161.883 ms | 86.150 ms |
+| Serialized sources on a two-item fixture | 704 bytes | 468 bytes |
+| Real script generation and speech | Not measured | Not measured by this comparison |
+| Full article reading | Not implemented at the time | Implemented subsequently; not measured by this comparison |
 
-Potwierdzone wąskie gardło: wolne zadanie zatrzymywało całą kolejną partię, choć
-pozostali pracownicy skończyli pracę. Kolejka usuwa tę barierę bez zwiększania
-limitu współbieżności, zmiany timeoutów lub pomijania tematów. HTTP 429/503
-zatrzymuje pobieranie następnych zadań; rozpoczęte żądania kończą się normalnie.
-Limity odpytywania i zapis historii pozostają obsługiwane przez repozytorium.
+The queue experiment showed that a slow task could hold up a fixed batch while other workers were idle. The current single-worker RSS policy deliberately prioritizes rate limits over that historical concurrency strategy. The fixture serialization comparison removed technical fields while preserving facts and source associations; it is not a measurement of current article-body requests.
 
-Pojedynczy rzeczywisty odczyt Google News dla „nauka” zwrócił 100 wpisów:
-HTTP 520,401 ms, parsowanie 9,923 ms, cały temat 530,456 ms. To pomiar po dodaniu
-diagnostyki; nie jest parą przed/po ani dowodem przyspieszenia Google. W tym odczycie
-dominowała sieć. Dla 1–4 tematów wcześniejszy kod już pobierał równolegle, więc
-usunięcie barier między partiami dotyczy głównie większej liczby tematów.
+A recorded single live Google News fetch for the Polish topic “nauka” returned 100 entries: HTTP 520.401 ms, parse 9.923 ms, total 530.456 ms. It was one observation after instrumentation, not a before/after comparison or a repeatable service guarantee. No new live measurement was performed for this documentation update.
 
-Z JSON wysyłanego do modelu usunięto wyłącznie metadane techniczne: dostawcę
-adaptera, GUID, adres kanału i czas pobrania. Wszystkie pola zawierające fakty,
-daty, tematy, identyfikatory i pochodzenie pozostają identyczne. Liczba bajtów nie
-jest liczbą tokenów i nie dowodzi konkretnego skrócenia czasu odpowiedzi OpenAI.
+## Repeating the controlled comparisons
 
-Modele, głos, PCM24k, segmentacja, systemowe instrukcje i walidacje nie są zmienione.
-Nie dodano płatnych wywołań ani automatycznych ponowień. Scenariusz zależy od
-wiadomości, a TTS od zatwierdzonego tekstu — tych etapów nie da się bezpiecznie
-uruchamiać równolegle. Segmenty Realtime pozostają sekwencyjne do czasu pomiaru
-i sprawdzenia jakości innej strategii.
-
-## Przygotowanie w interwale i anulowanie
-
-Scheduler już rozpoczyna przygotowanie na początku interwału i przechowuje gotowe
-audio do terminu. Testy potwierdzają, że odsłuch gotowego materiału omija RSS,
-model tekstowy i TTS. Cache WAV zachowuje walidację SHA oraz transkrypcji.
-Ograniczenia jednego zadania i istniejące anulowanie Realtime pozostają aktywne.
-Zatrzymanie podczas blokującego ContentGenerator czeka na odpowiedź lub timeout,
-a następnie tłumi TTS/odtwarzanie. Nie jest to przerwanie żądania Responses w locie.
-Pomiary same nie rozwiązują tego istniejącego ograniczenia.
-
-## Powtórzenie porównania
+These existing local tests do not use paid OpenAI calls:
 
 ```powershell
 cargo test --manifest-path src-tauri/Cargo.toml --lib work_queue::tests::compare_batch_barrier_and_work_queue -- --ignored --nocapture
 cargo test --manifest-path src-tauri/Cargo.toml --lib content::tests::compare_material_payload_without_removing_source_facts -- --nocapture
-npm run test:manual
-npm run test:scheduler
 ```
 
-Do rzeczywistego profilu uruchom `npm run tauri dev`, wykonaj jedno przygotowanie
-i porównaj `prepare.total`, `content.responses_http` oraz czasy segmentów Realtime.
-Takie przygotowanie używa istniejących płatnych usług; powyższe testy lokalne nie.
+For a real profile, enable native diagnostics and perform one preparation in the desktop app. Separate cached and uncached runs, distinguish rate-limit waiting from work, and include the content model and speech stage. Real preparation can incur API charges. Avoid treating an old Realtime comparison as a Speech API benchmark.
+
+## Scheduling and cancellation
+
+Preparation starts at the beginning of the interval and completed audio waits for playback time. Listening to compatible ready audio avoids new news, text, and speech generation. Persistence preserves completed chapters and speech segments after partial failures.
+
+Cancellation of blocking text/HTTP workers may wait for a response or timeout before later stages are suppressed. Speech cancellation also waits for cache writes. Timings expose these delays; they do not make blocking calls interruptible. See the [pipeline reference](broadcast-pipeline.md) for timeout/retry behavior and [Native integration](native-integration.md) for audio cleanup.
