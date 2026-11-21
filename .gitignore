@@ -16,7 +16,14 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.code-workspace
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.suo
 *.ntvs*
 *.njsproj
@@ -27,12 +34,18 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.envrc
+/secrets/
+/credentials/
 
 # Local build caches and generated TypeScript metadata
 .npm-cache/
 .cache/
 .vite/
 *.tsbuildinfo
+/coverage/
+/.nyc_output/
+/artifacts/
 
 # Cargo output when CARGO_TARGET_DIR points to the repository root.
 # src-tauri/target (including diagnostics-build) is ignored in src-tauri/.gitignore.
@@ -63,7 +76,13 @@ speech-*.wav
 *.p12
 *.key
 *.tmp
+*.temp
 *.bak
+*.orig
+*.rej
+*~
+/tmp/
+/temp/
 /audio/
 /cache/
 /user-data/
