@@ -4,7 +4,7 @@
 
 ## Existing release and workflow
 
-[v0.1.0](https://github.com/apjanusz/ara-brief/releases/tag/v0.1.0) is an existing published release with the Windows x64 NSIS installer. Versioned artifacts are distinct from the current default branch, which can contain later documentation changes.
+[v0.1.0](https://github.com/apjanusz/arabrief/releases/tag/v0.1.0) is an existing published release with the Windows x64 NSIS installer. Versioned artifacts are distinct from the current default branch, which can contain later documentation changes.
 
 [release-windows.yml](../.github/workflows/release-windows.yml) runs only when a matching version tag is pushed. Ordinary commits and pull requests do not invoke it. It uses Windows, Node.js 24, and the Rust MSVC x64 target to build an NSIS installer through `tauri-apps/tauri-action`.
 

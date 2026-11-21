@@ -7,7 +7,7 @@
 <p align="center"><strong>Twoje zainteresowania. Twoja muzyka. Twoja osobista audycja.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/apjanusz/ara-brief/releases/latest">Pobierz na Windows</a> ·
+  <a href="https://github.com/apjanusz/arabrief/releases/latest">Pobierz na Windows</a> ·
   <a href="docs/getting-started.md">Pierwsze kroki</a> ·
   <a href="README.md">English</a>
 </p>
@@ -42,7 +42,7 @@ W tym miejscu pojawią się zrzuty aplikacji. Planowane widoki: **Studio**, **Za
 
 ## Pobieranie
 
-Pobierz instalator Windows x64 z [najnowszego wydania GitHub Releases](https://github.com/apjanusz/ara-brief/releases/latest). W sekcji **Assets** wybierz plik z końcówką `x64-setup.exe`.
+Pobierz instalator Windows x64 z [najnowszego wydania GitHub Releases](https://github.com/apjanusz/arabrief/releases/latest). W sekcji **Assets** wybierz plik z końcówką `x64-setup.exe`.
 
 Instrukcję konfiguracji znajdziesz w [instalacji i pierwszym uruchomieniu](docs/getting-started.md). Obecne instalatory MVP nie są podpisane certyfikatem, więc Windows może wyświetlić ostrzeżenie SmartScreen.
 

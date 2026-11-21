@@ -7,7 +7,7 @@
 <p align="center"><strong>Your interests. Your music. Your personal news briefing.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/apjanusz/ara-brief/releases/latest">Download for Windows</a> ·
+  <a href="https://github.com/apjanusz/arabrief/releases/latest">Download for Windows</a> ·
   <a href="docs/getting-started.md">Getting started</a> ·
   <a href="README.pl.md">Polski</a>
 </p>
@@ -42,7 +42,7 @@ Screenshots will be added here. Planned views: **Studio**, **Interests**, and **
 
 ## Download
 
-Get the Windows x64 installer from [the latest GitHub Release](https://github.com/apjanusz/ara-brief/releases/latest). In **Assets**, download the file ending in `x64-setup.exe`.
+Get the Windows x64 installer from [the latest GitHub Release](https://github.com/apjanusz/arabrief/releases/latest). In **Assets**, download the file ending in `x64-setup.exe`.
 
 See [installation and first launch](docs/getting-started.md) for setup instructions. Current MVP installers are unsigned, so Windows may display a SmartScreen warning.
 

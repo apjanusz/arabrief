@@ -27,4 +27,4 @@ Initial published Windows desktop MVP. GitHub records publication at `2026-11-20
 
 This entry is based on the existing GitHub release and the code at tag `v0.1.0`, commit `e2511b29803cfe870aa15c6c1946c0a56e95f5b5`. It expands the brief original release description; it is not evidence of additional installer testing. Subsequent README and repository-documentation work is excluded from this release entry.
 
-[0.1.0]: https://github.com/apjanusz/ara-brief/releases/tag/v0.1.0
+[0.1.0]: https://github.com/apjanusz/arabrief/releases/tag/v0.1.0

@@ -6,7 +6,7 @@
 
 AraBrief targets Windows 10/11 x64 and requires an internet connection and Microsoft Edge WebView2 Runtime. Node.js, Rust, and the source repository are unnecessary for the installed application.
 
-1. Open [the latest GitHub Release](https://github.com/apjanusz/ara-brief/releases/latest).
+1. Open [the latest GitHub Release](https://github.com/apjanusz/arabrief/releases/latest).
 2. Under **Assets**, download the Windows installer ending in `x64-setup.exe`. The v0.1.0 asset is named `AraBrief_0.1.0_x64-setup.exe`.
 3. Run the NSIS installer and follow its prompts. It installs for the current Windows user; the installer itself uses Polish.
 4. If WebView2 is missing, setup downloads its bootstrapper. This requires internet access and may require additional permissions.

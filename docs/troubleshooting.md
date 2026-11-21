@@ -4,7 +4,7 @@
 
 ## Installation or startup fails
 
-Use the Windows x64 installer from [GitHub Releases](https://github.com/apjanusz/ara-brief/releases/latest), not a source archive. Check that WebView2 Runtime is installed; its bootstrapper needs internet access. Current MVP installers are unsigned, which can trigger SmartScreen. Verify the source of the download before deciding whether to run it.
+Use the Windows x64 installer from [GitHub Releases](https://github.com/apjanusz/arabrief/releases/latest), not a source archive. Check that WebView2 Runtime is installed; its bootstrapper needs internet access. Current MVP installers are unsigned, which can trigger SmartScreen. Verify the source of the download before deciding whether to run it.
 
 If opening a second instance appears to do nothing, check the tray: AraBrief uses a single instance. Closing the main window hides it rather than exiting.
 

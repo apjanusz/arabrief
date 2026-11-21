@@ -17,8 +17,8 @@ Make the tools available in the shell's `PATH`. Commands below run from the repo
 ## Run the application
 
 ```powershell
-git clone https://github.com/apjanusz/ara-brief.git
-cd ara-brief
+git clone https://github.com/apjanusz/arabrief.git
+cd arabrief
 npm ci
 npm run tauri dev
 ```
